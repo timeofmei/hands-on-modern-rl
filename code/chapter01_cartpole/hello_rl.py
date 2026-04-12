@@ -1,6 +1,10 @@
+import os
 import gymnasium as gym
 from stable_baselines3 import PPO
 from stable_baselines3.common.evaluation import evaluate_policy
+
+# 创建输出目录
+os.makedirs("output", exist_ok=True)
 
 # ==========================================
 # 第一阶段：训练智能体
@@ -21,7 +25,7 @@ mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes=10)
 print(f"训练完成！平均奖励: {mean_reward} +/- {std_reward}")
 
 # 保存模型
-model.save("ppo_cartpole")
+model.save("output/ppo_cartpole")
 env.close()
 
 # ==========================================
@@ -30,7 +34,7 @@ env.close()
 print("正在展示智能体的学习成果...")
 # 重新创建一个带有渲染画面的环境
 env = gym.make("CartPole-v1", render_mode="human")
-model = PPO.load("ppo_cartpole")
+model = PPO.load("output/ppo_cartpole")
 
 # 运行 5 个回合的视觉演示
 for episode in range(5):

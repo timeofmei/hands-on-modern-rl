@@ -2,7 +2,7 @@ import json
 import random
 import os
 
-def generate_mock_data(num_samples=100, output_file="preference_data.json"):
+def generate_mock_data(num_samples=100, output_file="output/preference_data.json"):
     """
     生成一个用于 DPO 偏好微调的 Mock 数据集。
     包含 chosen (好的回答) 和 rejected (坏的回答)。
@@ -58,4 +58,4 @@ def generate_mock_data(num_samples=100, output_file="preference_data.json"):
     print("💡 尝试修改此脚本，改变 chosen/rejected 的语气，比如让它变成一个傲娇助手或者严厉的教练！")
 
 if __name__ == "__main__":
-    generate_mock_data(100, "preference_data.json")
+    generate_mock_data(100, "output/preference_data.json")

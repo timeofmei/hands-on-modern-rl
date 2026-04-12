@@ -2,7 +2,20 @@ node_modules/
 docs/.vitepress/dist
 docs/.vitepress/cache
 .DS_Store
+__pycache__/
+*.pyc
 
 # Agents
 AGENTS.md
 CLAUDE.md
+
+# 运行时生成的图片、模型、数据
+*.png
+code/**/output/
+code/**/*.zip
+code/**/dpo_results/
+code/**/sft_results/
+code/**/rm_results/
+code/**/ppo_results/
+code/**/preference_data.json
+code/**/geometry_dataset/

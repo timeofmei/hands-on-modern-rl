@@ -7,10 +7,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 # ==========================================
 # 1. 准备偏好数据
 # ==========================================
-data_file = "preference_data.json"
+data_file = "output/preference_data.json"
 
 if not os.path.exists(data_file):
-    print(f"找不到 {data_file}！请先运行 generate_data.py 来生成偏好数据。")
+    print(f"找不到 {data_file}！请先运行 0-generate_data.py 来生成偏好数据。")
     exit(1)
 
 with open(data_file, "r", encoding="utf-8") as f:
@@ -39,7 +39,7 @@ tokenizer.pad_token = tokenizer.eos_token
 # 3. 配置训练参数与 DPOTrainer
 # ==========================================
 training_args = TrainingArguments(
-    output_dir="./dpo_results",
+    output_dir="./output/dpo_results",
     per_device_train_batch_size=2,
     learning_rate=1e-5,
     num_train_epochs=3,   # 这里可以调大以加深学习效果
@@ -62,7 +62,7 @@ print("\n开始 DPO 训练... (可以观察 loss 曲线和 rewards margin 的变
 trainer.train()
 
 # 训练完成后保存结果
-save_path = "./dpo_results/final_model"
+save_path = "./output/dpo_results/final_model"
 trainer.save_model(save_path)
 print(f"🎉 训练完成！微调后的模型已保存至 {save_path}。")
 print("你可以运行 test_after.py 来看看现在的模型会不会'好好说话'了。")
