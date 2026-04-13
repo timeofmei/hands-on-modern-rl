@@ -4,7 +4,7 @@
 
 教一个小孩骑自行车，你会怎么做？
 
-![Learning to ride a bike](/images/learning_bike.jpg)
+![Learning to ride a bike](./images/learning_bike.jpg)
 
 <div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
   <em>图 1：教小孩骑自行车的过程，正是一个典型的试错（Trial-and-Error）学习过程。来源：<a href="https://commons.wikimedia.org/wiki/File:Parent_helping_child_learning_to_ride_a_bike.jpg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></em>
@@ -18,7 +18,7 @@
 
 本书将带你亲手用代码重走这段旅程。从最基础的倒立摆（CartPole），一路走到如何用 RL 激发大语言模型的推理能力。这不仅是一门技术，更是一种理解智能如何涌现的全新视角。
 
-![CartPole 倒立摆环境：小车通过左右移动来保持杆子竖直平衡](/images/cartpole.gif)
+![CartPole 倒立摆环境：小车通过左右移动来保持杆子竖直平衡](./images/cartpole.gif)
 
 <div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
   <em>图 2：CartPole 倒立摆环境：小车通过左右移动来保持杆子竖直平衡。图源：<a href="https://gymnasium.farama.org/environments/classic_control/cart_pole/" target="_blank" rel="noopener noreferrer">Gymnasium</a></em>
@@ -78,7 +78,7 @@ graph LR
 
 > γ ≈ 0 时智能体倾向直奔小奶酪；γ ≈ 1 时愿意冒险绕路去拿大奶酪。
 
-![Maze Mouse Cheese](/images/maze_mouse_cheese.jpg)
+![Maze Mouse Cheese](./images/maze_mouse_cheese.jpg)
 
 <div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
   <em>图 3：老鼠走迷宫寻找奶酪，是强化学习中常用的寻路与决策模型。来源：<a href="https://commons.wikimedia.org/wiki/File:MAZE_Mouse_Cheese.jpg" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></em>
@@ -133,7 +133,7 @@ graph TD
 
 2016 年，AlphaGo 击败李世石，强化学习第一次震撼公众。2022 年 ChatGPT 发布，人们发现 RL 正是让大语言模型从"能说话"变成"说好话"的关键技术。从 DeepSeek-R1 到各类开源对齐模型，RLHF、DPO、GRPO 等算法已经深刻地重塑了整个 AI 行业。
 
-![ChatGPT](/images/chatgpt.png)
+![ChatGPT](./brief-history/images/chatgpt.png)
 
 <div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
   <em>图 5：ChatGPT 等大语言模型的崛起，标志着强化学习在人类偏好对齐和复杂推理上的成功。来源：<a href="https://commons.wikimedia.org/wiki/File:ChatGPT.png" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a></em>
