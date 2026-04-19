@@ -480,15 +480,15 @@ def verification_augmented_reward(trajectory, final_answer, ground_truth):
 
 [^tot]: Yao S, et al. "[Tree of Thoughts: Deliberate Problem Solving with Large Language Models](https://arxiv.org/abs/2305.10601)." NeurIPS 2023. 将推理展开为搜索树的经典框架。
 
-[^deepresearcher]: Zheng Y, et al. "[DeepResearcher: Scaling Deep Research via Reinforcement Learning in Real-world Environments](https://arxiv.org/abs/2504.03160)." arXiv, 2025. 在真实网络环境中 RL 训练涌现出规划和交叉验证行为。
+[^deepresearcher]: Zheng Y, et al. "[DeepResearcher: Scaling Deep Research via Reinforcement Learning in Real-world Environments](https://arxiv.org/abs/2504.03160)." EMNLP 2025. 在真实网络环境中 RL 训练涌现出规划和交叉验证行为。
 
 [^agentq]: Putta A, et al. "[Agent Q: Advanced Reasoning and Learning for Autonomous AI Agents](https://arxiv.org/abs/2408.07199)." arXiv, 2024. 将 MCTS 与 DPO 结合解决 Web Agent 的稀疏奖励问题。
 
-[^sparl]: Wang L, et al. "[SPA-RL: Reinforcing LLM Agents via Stepwise Progress Attribution](https://arxiv.org/abs/2505.20732)." arXiv, 2025. 通过步骤级进度归因精确分配每步贡献。
+[^sparl]: Wang H, et al. "[SPA-RL: Reinforcing LLM Agents via Stepwise Progress Attribution](https://arxiv.org/abs/2505.20732)." arXiv, 2025. 通过步骤级进度归因精确分配每步贡献。
 
-[^watchevery]: Xiong X, et al. "[Watch Every Step: LLM Agent Learning via Iterative Step-level Process Refinement](https://arxiv.org/abs/2406.11176)." EMNLP 2024. 系统研究步骤级奖励在 Agent 训练中的价值。
+[^watchevery]: Xiong W, et al. "[Watch Every Step: LLM Agent Learning via Iterative Step-level Process Refinement](https://arxiv.org/abs/2406.11176)." EMNLP 2024. 系统研究步骤级奖励在 Agent 训练中的价值。
 
-[^storl]: Wang Z, et al. "[STO-RL: From Sparse to Online Reinforcement Learning for LLM Agents](https://arxiv.org/abs/2601.08107)." arXiv, 2026. 离线预热 + 在线精修的两阶段策略。
+[^storl]: Gu C, Pan Y, Xiong H, Chen Y. "[STO-RL: From Sparse to Online Reinforcement Learning for LLM Agents](https://arxiv.org/abs/2601.08107)." AAMAS 2026. 离线预热 + 在线精修的两阶段策略。
 
 [^s2r]: Ma R, et al. "[S2R: Teaching LLMs to Self-verify and Self-correct via Reinforcement Learning](https://arxiv.org/abs/2502.12853)." arXiv, 2025. 首个系统性用 RL 训练自我验证与纠错闭环的工作。
 
@@ -498,6 +498,6 @@ def verification_augmented_reward(trajectory, final_answer, ground_truth):
 
 [^reflexion]: Shinn N, et al. "[Reflexion: Language Agents with Verbal Reinforcement Learning](https://arxiv.org/abs/2303.11366)." NeurIPS 2023. 引入语言反思机制的 Agent 框架。
 
-[^metareflect]: Chen Z, et al. "[MR-Search: Meta-Reinforcement Learning with Self-Reflection for Agentic Search](https://arxiv.org/abs/2603.11327)." arXiv, 2026. 将自我反思能力嵌入元学习过程，用于智能体搜索场景。
+[^metareflect]: Xiao T, Yuan Y, Ivison H, Zhu H, et al. "[MR-Search: Meta-Reinforcement Learning with Self-Reflection for Agentic Search](https://arxiv.org/abs/2603.11327)." arXiv, 2026. 将自我反思能力嵌入元学习过程，用于智能体搜索场景。
 
 [^rerest]: Dou Z-Y, et al. "[Re-ReST: Reflection-Reinforced Self-Training for Language Agents](https://arxiv.org/abs/2406.01495)." EMNLP 2024. 自我纠错与迭代自训练的结合。

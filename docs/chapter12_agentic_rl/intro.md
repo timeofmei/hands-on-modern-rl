@@ -1,4 +1,4 @@
-# 第 12 章：Agentic RL——工具调用、多轮交互与智能体训练
+# 第 9 章：Agentic RL——工具调用、多轮交互与智能体训练
 
 从第 4 章的 DQN 到第 8 章的 GRPO，我们一直在处理"单轮"的 RL 问题：输入一个 prompt，模型输出一段完整的回答，Reward Model 打一个分数，然后更新策略。这个范式在过去两年里被证明非常有效——ChatGPT、Claude、DeepSeek 都是这样训练出来的。
 

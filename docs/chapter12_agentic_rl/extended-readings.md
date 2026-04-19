@@ -118,7 +118,7 @@ GUI 智能体让 AI 能像人一样操作图形界面——点击按钮、填写
 
 | 工作名称                               | 核心亮点                                                      | 链接                                                        |
 | -------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
-| HER                                    | 提出双层思考框架，区分角色的第一人称思维和 LLM 的第三人称思维 | [arXiv](https://arxiv.org/abs/2601.21459)                   |
+| HER (Human-like Reasoning)              | 提出双层思考框架，区分角色的第一人称思维和 LLM 的第三人称思维（注：非经典 Hindsight Experience Replay） | [arXiv](https://arxiv.org/abs/2601.21459)                   |
 | OMAR                                   | 通过多轮自博弈 RL，培养 AI 的社交智能                         | [arXiv](https://arxiv.org/abs/2602.03109)                   |
 | R4                                     | 赋予奖励模型和角色扮演智能体推理与检索能力                    | [ICLR Poster](https://iclr.cc/virtual/2026/poster/10007049) |
 | VeriRole                               | 通过可验证的提示引导 RL 提升角色意识                          | [OpenReview](https://openreview.net/forum?id=lW7kMpMj9K)    |
@@ -149,7 +149,7 @@ GUI 智能体让 AI 能像人一样操作图形界面——点击按钮、填写
 | --------------------------------- | ---------------------------------------------------------------- | ----------------------------------------- |
 | RLVER                             | 利用可验证情感奖励训练 LLM 的高阶共情能力                        | [arXiv](https://arxiv.org/abs/2507.03112) |
 | CARE                              | 认知推理增强的 RL，提升情感支持对话的逻辑性与支持质量            | [arXiv](https://arxiv.org/abs/2510.05122) |
-| PEER                              | 统一过程-结果 RL，实现结构化共情推理                             | [arXiv](https://arxiv.org/abs/2508.09521) |
+| COMPEER                           | 统一过程-结果 RL，实现结构化共情推理                             | [arXiv](https://arxiv.org/abs/2508.09521) |
 | DialogXpert                       | 基于在线价值 RL 的对话规划，在谈判、情感支持等任务上成功率超 94% | [arXiv](https://arxiv.org/abs/2505.17795) |
 | EILS                              | 受生物情绪启发的内稳态学习信号框架，用于构建自适应自主智能体     | [arXiv](https://arxiv.org/abs/2512.22200) |
 | SAGE (Steering Dialog Generation) | 使用隐变量控制对话生成的长期行为，用于构建情感智能聊天机器人     | [arXiv](https://arxiv.org/abs/2503.03040) |
