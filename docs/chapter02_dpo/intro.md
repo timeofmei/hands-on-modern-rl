@@ -1,4 +1,4 @@
-# 第2章：现代RL初体验——5分钟让大模型学会"说好话"
+# 第2章：现代RL初体验——DPO 偏好对齐
 
 > 📁 **本章代码**：[0-generate_data.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter02_dpo/0-generate_data.py) · [1-test_before.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter02_dpo/1-test_before.py) · [2-train_dpo.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter02_dpo/2-train_dpo.py) · [3-test_after.py](https://github.com/walkinglabs/hands-on-modern-rl/blob/main/code/chapter02_dpo/3-test_after.py)
 
@@ -22,7 +22,7 @@
 
 给定一个偏好数据集，我们的目标是寻找模型的参数 $\theta$，使得根据模型做出的预测大体符合数据里的人类偏好。而在机器学习领域，我们通常使用深度学习框架（如 PyTorch）和高层库（如 HuggingFace 的 TRL 库）来快速实现这一过程。
 
-在这里，我们以 `Qwen2.5-0.5B-Instruct` 这样一个参数量仅为 5 亿的轻量级模型为例。为了让它学会“说好话”，我们需要构建一个玩具级别的偏好数据集。并且，在开始微调之前，我们先看看模型原始的输出是什么样的。
+在这里，我们以 `Qwen2.5-0.5B-Instruct` 这样一个参数量仅为 5 亿的轻量级模型为例。为了让它学会生成更符合人类偏好的回复，我们需要构建一个小规模的偏好数据集。在开始微调之前，先观察模型原始的输出。
 
 ### 零步：准备偏好数据集
 
@@ -130,14 +130,14 @@ trainer.train()
 # 训练完成后保存结果
 save_path = "./dpo_results/final_model"
 trainer.save_model(save_path)
-print(f"🎉 训练完成！微调后的模型已保存至 {save_path}。")
+print(f"训练完成！微调后的模型已保存至 {save_path}。")
 ```
 
 在这个过程中，`DPOTrainer` 在后台执行了计算。它并没有显式地训练一个打分的“奖励模型”（Reward Model），而是直接利用交叉熵的数学变形，最大化 $y_w$ 相对于 $y_l$ 的生成概率。整个过程在普通的 GPU 上不到 5 分钟即可完成。
 
 ### 第三步：测试微调后的输出
 
-现在模型已经学过了什么是“好话”。我们运行验证脚本：[3-test_after.py](../../code/chapter02_dpo/3-test_after.py)，加载微调后的模型目录来测试：
+现在模型已经经过偏好对齐训练。运行验证脚本：[3-test_after.py](../../code/chapter02_dpo/3-test_after.py)，加载微调后的模型目录来测试：
 
 ```python
 import os
@@ -165,22 +165,22 @@ print(tokenizer.decode(outputs[0][inputs.input_ids.shape[-1]:], skip_special_tok
 print("=" * 40)
 ```
 
-此时，你应该能明显看到，模型不再与用户抬杠，而是给出了类似 `chosen` 样本中极其克制且礼貌的回答。
+此时，你应该能观察到，模型不再输出对抗性的回复，而是给出了与 `chosen` 样本风格一致的礼貌回答。
 
-### 💡 探索实验：定制你的专属大模型
+### 探索实验：自定义偏好数据
 
-我们非常鼓励你打开配套的 [0-generate_data.py](../../code/chapter02_dpo/0-generate_data.py) 脚本，修改里面的提示词（Prompt）和偏好对。比如，你可以：
+读者可以打开配套的 [0-generate_data.py](../../code/chapter02_dpo/0-generate_data.py) 脚本，修改其中的提示词和偏好对。例如：
 
-- 把 `chosen` 改写成傲娇的**“毒舌教练”**风格。
-- 把 `rejected` 改写成刻板生硬的 AI 回复。
+- 将 `chosen` 改写为特定的风格（如”毒舌教练”风格）。
+- 将 `rejected` 改写为刻板生硬的 AI 回复。
 
-生成新的偏好数据集并重新微调后，你就能得到一个极具个性的专属助手，这正是后训练的魅力所在！
+生成新的偏好数据集并重新微调后，即可得到具有特定回复风格的模型，这正是偏好对齐的核心能力。
 
 ## 2.3 观察与疑问
 
 运行完上述代码后，你可以对微调前后的模型输入同一个挑衅性的问题。你会发现，微调后的模型在回答时明显变得更加礼貌和富有建设性。
 
-我们不禁要问：
+这引出几个值得思考的问题：
 
 1. **训练日志里的指标代表什么？** DPO 训练过程中打印的 Loss 和 Reward Margin 究竟意味着什么？
 2. **什么是 Post-Training？** DPO 在大模型的生命周期中到底处于什么位置？
