@@ -169,6 +169,7 @@ flowchart TB
     J(\theta) = \mathbb{E}_{\mu \sim p(\mu)} \left[ \mathbb{E}_{\tau \sim \mathcal{P}_\mu}[R(\tau)] \right]
     $$
   - **代码实战**：在强化学习代码的 `reset()` 或 `step()` 环节，必须对物理世界的各种“脏数据”进行疯狂的随机化注入：
+
     ```python
     def apply_domain_randomization(self):
         # 1. 随机改变机器人的质量分布 (例如增加或减少 20%)
@@ -184,6 +185,60 @@ flowchart TB
         # 4. 给观测数据注入高斯噪声 (模拟传感器误差)
         noisy_observation = true_observation + np.random.normal(0, noise_std)
         return noisy_observation
+    ```
+
+### 4. 奖励函数设计：从稀疏目标到极度密集的奖励工程 (Reward Shaping)
+
+- **传统 RL（稀疏奖励）**：在雅达利游戏或围棋中，奖励通常极其简单。赢了得 +1，输了得 -1。RL 算法需要在几千步的延迟后自己搞清楚是哪一步做对了。
+- **具身智能（密集工程）**：如果只给机器人设定“走到终点 +1，摔倒 -1”，在连续高维的物理世界里，机器人可能永远学不会走路（它可能会发现原地打滚也能蹭向终点）。
+  - **核心 Insight**：具身 RL 的大部分精力花在设计一个包含十几个子项的**复合奖励函数（Composite Reward Function）**。
+  - **数学建模**：奖励被拆解为“任务奖励（Task Reward）”和“正则化惩罚（Regularization Penalty）”的加权和：
+    $$
+    R_t = \sum_{i} w_i r_{task, i} - \sum_{j} \lambda_j c_{penalty, j}
+    $$
+  - **代码实战**：你看真正的四足机器人 RL 代码（比如 `unitree_rl_gym` 中），每一帧的奖励计算可能长达几十行，像是在精雕细琢一门艺术：
+    ```python
+    def compute_reward(self):
+        # 1. 任务奖励：鼓励机器人朝着目标速度前进（追踪指令）
+        lin_vel_error = np.sum(np.square(self.commands[:2] - self.base_lin_vel[:2]))
+        reward_tracking = np.exp(-lin_vel_error / 0.25) * self.dt
+
+        # 2. 姿态惩罚：惩罚机身倾斜，让它保持平稳
+        penalty_orientation = np.sum(np.square(self.projected_gravity[:2])) * -0.5
+
+        # 3. 能量惩罚：惩罚输出过大的电机扭矩，防止电机过热烧毁
+        penalty_torques = np.sum(np.square(self.torques)) * -0.00001
+
+        # 4. 动作平滑惩罚：惩罚相邻两帧动作变化过大，防止机器人抽搐（实机非常容易出现）
+        penalty_action_rate = np.sum(np.square(self.last_actions - self.actions)) * -0.01
+
+        return reward_tracking + penalty_orientation + penalty_torques + penalty_action_rate
+    ```
+
+### 5. 网络架构 Insight：非对称 Actor-Critic (Asymmetric AC)
+
+- **传统 RL**：在 PPO 等 Actor-Critic 算法中，Actor 网络（策略 $\pi$）和 Critic 网络（价值 $V$）通常接收**完全一样**的观测数据（State/Observation）。
+- **具身智能（Privileged Learning）**：在仿真环境中，我们其实拥有“上帝视角”。仿真引擎知道当前的绝对精确质量、摩擦系数、风速等隐藏信息。但真实的机器人到了物理世界，只能看到带噪声的相机和 IMU 数据。
+  - **核心 Insight**：为什么不让 Critic 拥有“上帝视角”，而只让 Actor 保持“机器人视角”呢？这就是**非对称 Actor-Critic（Asymmetric Actor-Critic / 老师教学生范式）**。
+  - **数学与工程优势**：由于 Critic 在训练时能看到没有噪声的特权状态（Privileged State $S_{priv}$），它对价值 $V(S_{priv})$ 的估计极其精准。这极大降低了策略梯度的方差，使 Actor $\pi(a|O_{noisy})$ 能够又快又稳地收敛。部署时，我们只需要带走 Actor 网络，不需要 Critic。
+  - **代码实战**：网络输入发生了分离：
+
+    ```python
+    # 具身智能训练时的 Asymmetric Actor-Critic
+
+    # 1. 真实世界的观测 (带噪声的 IMU、相机深度图等)
+    obs = env.get_noisy_observation()
+
+    # 2. 仿真器独有的特权信息 (绝对速度、摩擦系数、推力干扰)
+    privileged_obs = env.get_privileged_state()
+
+    # 3. 价值网络 (Critic) 吃特权信息，给出的 V 值极准
+    value = critic_net(privileged_obs)
+
+    # 4. 策略网络 (Actor) 只能吃带噪声的观测，学会在不确定性中做决策
+    action = actor_net(obs)
+
+    # 部署到真机时，扔掉 Critic，只保留 Actor
     ```
 
 ## 具身智能强化学习主流范式
