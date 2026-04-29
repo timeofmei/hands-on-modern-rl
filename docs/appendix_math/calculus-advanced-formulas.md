@@ -184,13 +184,13 @@ $$
 
 本页汇总了 E.3 模块所有核心公式：
 
-| 公式           | 核心表达式                                                     | 用途                               |
-| -------------- | -------------------------------------------------------------- | ---------------------------------- |
-| 策略梯度定理   | $\nabla_\theta J=\mathbb{E}[\nabla\log\pi\cdot Q^\pi]$        | 策略优化的理论基础                 |
-| DQN 损失       | $L=\frac{1}{2}(Q_\theta-y_t)^2$                                | 价值函数的训练目标                 |
-| GAE            | $\hat{A}^{GAE}_t=\sum_l(\gamma\lambda)^l\delta_{t+l}$         | 偏差-方差权衡的优势估计            |
-| PPO 裁剪       | $\min(r_t\hat{A}_t,\mathrm{clip}(r_t,1-\epsilon,1+\epsilon)\hat{A}_t)$ | 限制策略更新幅度             |
-| GRPO 组优势    | $\hat{A}_i=(r_i-\mu)/(\sigma+\epsilon)$                        | 无需 Critic 的组内相对比较         |
+| 公式         | 核心表达式                                                             | 用途                       |
+| ------------ | ---------------------------------------------------------------------- | -------------------------- |
+| 策略梯度定理 | $\nabla_\theta J=\mathbb{E}[\nabla\log\pi\cdot Q^\pi]$                 | 策略优化的理论基础         |
+| DQN 损失     | $L=\frac{1}{2}(Q_\theta-y_t)^2$                                        | 价值函数的训练目标         |
+| GAE          | $\hat{A}^{GAE}_t=\sum_l(\gamma\lambda)^l\delta_{t+l}$                  | 偏差-方差权衡的优势估计    |
+| PPO 裁剪     | $\min(r_t\hat{A}_t,\mathrm{clip}(r_t,1-\epsilon,1+\epsilon)\hat{A}_t)$ | 限制策略更新幅度           |
+| GRPO 组优势  | $\hat{A}_i=(r_i-\mu)/(\sigma+\epsilon)$                                | 无需 Critic 的组内相对比较 |
 
 遇到不熟悉的符号时可以回到这一页查阅。下一篇用练习题来检验对这些公式的理解。
 
