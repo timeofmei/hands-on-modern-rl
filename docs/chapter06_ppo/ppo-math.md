@@ -1,6 +1,57 @@
 # 7.2 PPO 数学推导：从 RL 目标到裁剪代理目标
 
-上一节我们用 SB3 的 PPO 训练了月球着陆器，看到了 reward、entropy、clip fraction 这些曲线。接下来要回答一个更基础的问题：**PPO 为什么要长成现在这个样子？**
+上一节我们用 SB3 的 PPO 训练了月球着陆器，看到了 reward、entropy、clip fraction 这些曲线。接下来要回答一个更基础的问题：**PPO 到底是什么？为什么它最后会写成一个 loss？**
+
+PPO 的全称是 **Proximal Policy Optimization**，通常翻译成**近端策略优化**。这个名字可以拆开理解：
+
+- **Policy**：策略，也就是负责选动作的模型。
+- **Optimization**：优化，也就是训练、改进这个策略。
+- **Proximal**：近端，也就是新策略不要离旧策略太远。
+
+所以先给结论：**PPO 不是策略本身，也不只是一个 loss。PPO 是一种训练策略网络的方法。**
+
+在强化学习里，**策略**是我们真正要训练的对象。它通常写成：
+
+$$
+\pi_\theta(a \mid s)
+$$
+
+这表示“参数为 $\theta$ 的策略网络，在状态 $s$ 下选择动作 $a$ 的概率”。在代码里，这个策略通常就是 **Actor 网络**。比如输入一个游戏画面或机器人状态，Actor 输出每个动作的概率。
+
+**PPO 做的事情，是告诉我们怎样训练这个 Actor。** 它不是把动作直接写死，也不是替代策略网络，而是一套更新规则：先用当前 Actor 收集一批经验，再根据这批经验调整 Actor 的参数，同时限制每次调整不要太猛。
+
+可以先把三个概念分清楚：
+
+| 名字               | 它是什么                                                   | 代码里大概对应什么                         |
+| ------------------ | ---------------------------------------------------------- | ------------------------------------------ |
+| **策略（policy）** | 被训练的对象，负责根据状态选择动作                         | `actor` / `model` 输出的 `action_probs`    |
+| **PPO**            | 训练策略的方法，规定如何采样、计算优势、限制更新、反向传播 | 整个训练循环                               |
+| **PPO loss**       | PPO 方法中用于更新神经网络参数的可求导目标                 | `policy_loss + value_loss - entropy_bonus` |
+
+为什么后面会频繁讲 **loss**？因为神经网络不能直接听懂“让策略稳一点、别变太快”这句话。优化器能做的事情很具体：给它一个标量 loss，它通过 `loss.backward()` 算梯度，再用 `optimizer.step()` 改参数。所以，**PPO 的思想必须最后落成一个 loss，才能真正更新 Actor 和 Critic。**
+
+换句话说，**PPO 是方法，策略是被训练的模型，loss 是这个方法落到代码里的训练信号。** 后面推导 PPO loss，不是因为 PPO 只有 loss，而是因为 loss 是 PPO 真正作用到神经网络参数上的地方。
+
+## 先看一份完整的手写 PPO 代码
+
+为了让后面的公式不悬空，我们先把 **PPO 在代码里大概长什么样**放在这里。下面这份代码不是工程性能版，而是一份适合学习的 **最小 PyTorch PPO 骨架**：它包含策略网络、采样、优势估计、PPO-Clip 损失、价值函数损失、熵奖金和多轮更新。
+
+后文每推到一个公式，都会回到这份代码里的某一段。代码块中带底色的部分，就是后面会反复拆开的核心行。可以先不用完全读懂每一行，只要先记住：**PPO 最终就是把“收集经验、计算优势、限制策略变化、反向传播更新参数”连成一个训练循环。**
+
+<PpoCodeFocus focus="overview" />
+
+这份代码可以分成六块：
+
+| 标记    | 代码部分           | 后文会解释什么                                             |
+| ------- | ------------------ | ---------------------------------------------------------- |
+| **[A]** | `forward`          | 策略 $\pi_\theta(a\mid s)$ 和价值函数 $V_\theta(s)$ 是什么 |
+| **[B]** | `act` / `evaluate` | 为什么要构造 `dist`，以及为什么要保存 `log_prob`           |
+| **[C]** | `collect_rollout`  | 什么叫 on-policy 数据，为什么要记录旧策略概率              |
+| **[D]** | `compute_gae`      | 回报、价值函数、优势函数之间是什么关系                     |
+| **[E]** | `ppo_update`       | PPO-Clip 的 `ratio`、`clamp`、`min` 和总损失               |
+| **[F]** | 训练循环           | 为什么同一批数据会更新多轮                                 |
+
+后文遇到关键变量时，会反复出现这个 **代码透镜**。它默认只显示当前段落关心的代码，并把关键行加粗加深；鼠标移上去或点击按钮后，会展开同一份完整代码。这样读者既能专心看局部，又不会忘记这几行在整个 PPO 程序里的位置。
 
 如果你曾经练习过一个需要不断试错的技能，比如投篮、骑车或打游戏，那么已经熟悉了**强化学习的基本味道**。你先按照当前的做法尝试一次，观察结果；如果结果不错，就更倾向于**保留这类动作**；如果结果很差，就**减少下次再这么做的概率**。强化学习中的策略网络也是这样学习的。
 
@@ -16,21 +67,21 @@ PPO 的核心想法可以用一句更朴素的话概括：
 
 这张图里最重要的是中间的检查点：每一轮更新都会重新计算新旧策略的概率比值 $r_t$。如果 $r_t$ 还在安全区间内，PPO 就继续利用这批经验学习；如果 $r_t$ 已经离 1 太远，说明新策略相对旧策略变得太多，PPO 就用裁剪把这部分更新截住。
 
-先说清楚一个容易混淆的点：**PPO 不是一个 loss，而是一种训练策略网络的方法。** 它包含采样、记录旧策略概率、计算优势、裁剪策略更新、训练价值函数、加熵奖励和多轮 mini-batch 更新。**PPO loss 只是这套方法中最核心的“安全更新规则”**，因为神经网络最终必须通过一个可求梯度的 loss 来更新参数。
+到这里可以看到，PPO 的“方法感”主要来自两件事：**一批经验会被重复学习多轮**，并且**每一轮都会用概率比值检查新旧策略差异**。后文的 PPO loss，就是把这两件事写成一个可计算、可反向传播的目标。
 
 这就是 PPO 中 **“Proximal”（近端、不要离太远）** 这个词的含义。PPO 并不要求策略完全不变，而是要求**每次改变都不要太猛**。它希望模型像稳定练习一样逐步变好，而不是一次更新就把原来还不错的行为方式推翻。
 
 本节会从最基本的强化学习记号讲起，然后一步步走到 PPO 的最终公式。顺序如下：
 
-```text
-先定义状态、动作、奖励
-→ 说明为什么要看长期回报
-→ 把“策略好不好”写成数学目标 J(θ)
-→ 推导怎样调整策略参数
-→ 引入价值函数和优势函数，降低训练噪声
-→ 解释为什么旧数据不能随便重复用
-→ 用概率比值衡量新旧策略差异
-→ 最后得到 PPO 的裁剪目标
+```mermaid
+flowchart TD
+    A["先定义状态、动作、奖励<br/>s_t, a_t, r_t"] --> B["说明为什么要看长期回报<br/>G_t"]
+    B --> C["把“策略好不好”写成数学目标<br/>J(theta)"]
+    C --> D["推导怎样调整策略参数<br/>policy gradient"]
+    D --> E["引入价值函数和优势函数<br/>降低训练噪声"]
+    E --> F["解释为什么旧数据不能随便重复用<br/>on-policy 的限制"]
+    F --> G["用概率比值衡量新旧策略差异<br/>ratio = pi_new / pi_old"]
+    G --> H["最后得到 PPO 的裁剪目标<br/>PPO-Clip"]
 ```
 
 等这些概念都铺好之后，再看 PPO 的公式就不会像突然从天上掉下来：
@@ -69,8 +120,10 @@ $$
 
 强化学习最基本的循环是：
 
-```text
-看到状态 s_t → 策略选择动作 a_t → 环境给出奖励 r_t 和下一个状态 s_{t+1}
+```mermaid
+flowchart LR
+    S["看到状态<br/>s_t"] --> P["策略选择动作<br/>a_t"]
+    P --> E["环境返回<br/>奖励 r_t<br/>下一个状态 s_{t+1}"]
 ```
 
 这里的 $t$ 表示时间步。$s_t$ 是 agent 在第 $t$ 步看到的状态，$a_t$ 是它采取的动作，$r_t$ 是环境对这个动作的即时反馈。**强化学习不是只看某一步奖励，而是关心一串决策共同造成的长期结果。**
@@ -95,14 +148,11 @@ $$
 \pi_\theta(a_t \mid s_t)
 $$
 
-这表示“参数为 $\theta$ 的策略网络，在状态 $s_t$ 下选择动作 $a_t$ 的概率”。在代码中，Actor 网络输出动作分布：
+这表示“参数为 $\theta$ 的策略网络，在状态 $s_t$ 下选择动作 $a_t$ 的概率”。在代码中，Actor 网络会先输出动作概率，再把它包装成动作分布 `dist`：
 
-```python
-action_probs, value = model(state_tensor)
-dist = Categorical(action_probs)
-action = dist.sample()
-log_prob = dist.log_prob(action)
-```
+<PpoCodeFocus focus="dist" />
+
+这段默认显示 **[A] 策略输出** 和 **[B] 动作采样**。如果展开完整代码，可以看到它前面接着网络定义，后面接着 rollout 采样。
 
 `action_probs` 就是 $\pi_\theta(\cdot \mid s_t)$，它是所有动作的概率分布。比如在一个有 3 个离散动作的环境中，`action_probs = [0.1, 0.7, 0.2]` 表示：动作 0 的概率是 10%，动作 1 的概率是 70%，动作 2 的概率是 20%。
 
@@ -177,7 +227,7 @@ $$
 
 这句话的意思是：从现在开始的总回报，等于“现在的奖励”加上“下一步总回报打一个折扣”。代码里通常从后往前算：
 
-```python
+```python {4}
 G = 0
 returns = []
 for reward in reversed(rewards):
@@ -271,7 +321,7 @@ $$
 
 实现时，我们通常不手写这个梯度，而是写一个等价的 loss，让自动微分去算：
 
-```python
+```python {1-2}
 policy_loss = -(log_probs * returns).mean()
 policy_loss.backward()
 optimizer.step()
@@ -318,10 +368,9 @@ $$
 
 对应到代码就是：
 
-```python
-advantages, returns = compute_gae(batch["rewards"], batch["values"], batch["dones"])
-value_loss = F.mse_loss(new_values, mb_returns)
-```
+<PpoCodeFocus focus="advantages" />
+
+这段默认把 **[D] 优势估计** 和 **[E] 价值函数训练** 放在一起看：`advantages` 告诉 Actor 怎么改，`returns` 则给 Critic 的 `value_loss` 提供监督目标。
 
 如果不用 GAE，最朴素的近似就是 `advantages = returns - values`。本章代码使用 GAE 来算 `advantages`，下一节会专门推导 GAE。这里先把它理解成“比 Critic 预期更好或更差的那部分”。
 
@@ -354,8 +403,10 @@ $$
 
 到这里，我们已经有了一个看起来完整的算法：
 
-```text
-用当前策略采样一批轨迹 → 计算回报和优势 → 用 log_prob × advantage 更新策略
+```mermaid
+flowchart LR
+    A["用当前策略采样一批轨迹"] --> B["计算回报和优势"]
+    B --> C["用 log_prob × advantage 更新策略"]
 ```
 
 问题在于，朴素策略梯度有一个要求：**用来更新策略的数据，最好就是这个策略自己刚刚采样出来的数据。** 这个性质通常叫做 **on-policy**。公式里的期望是：
@@ -372,11 +423,9 @@ $$
 
 PPO 的核心矛盾就在这里：**我们想复用旧数据提高样本效率，但又不能让新策略离旧策略太远，否则旧数据会误导更新。**
 
-在 [ppo_from_scratch.py](../../code/chapter06_ppo/ppo_from_scratch.py) 的 `collect_trajectories` 函数中，代码特意把采样当时的 log 概率存下来：
+在学习版 PPO 骨架的 `collect_rollout` 函数中，代码特意把采样当时的 log 概率存下来：
 
-```python
-old_logprobs.append(log_prob.item())
-```
+<PpoCodeFocus focus="oldLogprobs" />
 
 这个 `old_logprobs` 就是 $\log \pi_{\text{old}}(a_t\mid s_t)$。后面更新时，模型会重新计算同一批状态动作对在新策略下的 `new_logprobs`。新旧 log 概率一比较，就能知道策略偏离了多少。下一步的重要性采样正是为了解开“旧数据能不能继续用”这个结。
 
@@ -408,11 +457,7 @@ $$r_t(\theta) = \frac{\pi_\theta(a_t | s_t)}{\pi_{\text{old}}(a_t | s_t)}$$
 
 在代码中，策略比率通过 log 概率之差的指数来计算，这是为了避免直接做除法导致数值下溢：
 
-```python
-# ppo_from_scratch.py 中的 ppo_clip_loss 函数
-ratio = torch.exp(new_logprobs - old_logprobs)
-# 即 r_t(θ) = exp(log π_θ - log π_old) = π_θ / π_old
-```
+<PpoCodeFocus focus="ratio" />
 
 **$r_t = 1$ 表示新策略和旧策略在这个动作上概率相同**；$r_t > 1$ 表示新策略更倾向于选这个动作；$r_t < 1$ 则相反。
 
@@ -426,12 +471,9 @@ $$L^{\text{IS}}(\theta) = \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right]$$
 
 $$L^{\text{IS}}(\theta) = \mathbb{E}_t \left[ \frac{\pi_\theta(a_t | s_t)}{\pi_{\text{old}}(a_t | s_t)} \cdot A_t \right]$$
 
-代码中对应：
+代码中对应的是 `surr1 = ratio * advantages`，它在 PPO 更新函数里紧跟着 `ratio`：
 
-```python
-# 未裁剪的目标（即 L^IS）
-surr1 = ratio * advantages
-```
+<PpoCodeFocus focus="surr1" />
 
 这个目标有一个重要性质——**在 $\theta = \theta_{\text{old}}$ 处，它的一阶梯度等于朴素策略梯度**：
 
@@ -463,11 +505,9 @@ $$
 r_t(\theta)A_t
 $$
 
-代码里就是：
+代码里就是 `surr1 = ratio * advantages`：
 
-```python
-surr1 = ratio * advantages
-```
+<PpoCodeFocus focus="surr1" />
 
 这里的 `surr1` 可以理解为**“原始策略改进目标”**。它的规则很简单：
 
@@ -489,11 +529,9 @@ $$
 
 如果 $\varepsilon=0.2$，那么区间就是 $[0.8, 1.2]$。这表示：对这批旧数据里的某个动作，新策略给它的概率最好不要低于旧策略的 0.8 倍，也不要高于旧策略的 1.2 倍。
 
-代码里就是：
+代码里会把未裁剪目标 `surr1`、裁剪后的 `surr2` 和最终 `policy_loss` 放在一起：
 
-```python
-surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * advantages
-```
+<PpoCodeFocus focus="clip" title="裁剪代理目标 surr2 和 PPO-Clip" />
 
 现在我们有两个目标：
 
@@ -517,14 +555,7 @@ $$
 
 **这就是 PPO-Clip。** 它不是从 TRPO 公式一步一步代数变形出来的，而是从“重要性采样代理目标”出发，加上“不要让策略比率跑太远”的保守规则得到的。TRPO 是这个保守思想的历史来源之一，但不是理解 PPO 代码的必经步骤。
 
-代码中对应：
-
-```python
-policy_objective = torch.min(surr1, surr2).mean()
-policy_loss = -policy_objective
-```
-
-为什么加负号？因为数学上我们要最大化 `policy_objective`，但 **PyTorch 里的优化器默认最小化 loss**，所以代码写成 `policy_loss = -policy_objective`。
+也就是代码里的 `torch.min(surr1, surr2).mean()`。为什么加负号？因为数学上我们要最大化 `policy_objective`，但 **PyTorch 里的优化器默认最小化 loss**，所以代码写成 `policy_loss = -policy_objective`。
 
 ### 7.1 分情况理解裁剪效果
 
@@ -640,61 +671,39 @@ flowchart LR
 
 所以 PPO 不是单独的一个公式，也不是单独的一行 `loss.backward()`。一个完整的 PPO 方法至少包含这些部分：
 
-| PPO 里的部分 | 它做什么 | 代码里的体现 |
-| ------------ | -------- | ------------ |
-| 当前策略采样 | 先让当前策略和环境互动，收集一批新经验 | `collect_trajectories(...)` |
-| 旧策略记录 | 保存采样时每个动作的概率，后面用来比较新旧策略 | `old_logprobs` |
-| 优势估计 | 判断每个动作比平均水平好还是差 | `advantages` / `compute_gae(...)` |
-| 裁剪策略更新 | 更新 Actor，但限制新策略不要离旧策略太远 | `ppo_clip_loss(...)` |
-| 价值函数训练 | 训练 Critic，让它更会估计状态价值 | `value_loss` |
-| 熵奖励 | 保持一定探索，不要过早变得太确定 | `entropy_bonus` |
-| 多轮小批量更新 | 同一批数据更新多轮，提高样本利用率 | `n_epochs` / mini-batch |
+| PPO 里的部分   | 它做什么                                       | 代码里的体现                      |
+| -------------- | ---------------------------------------------- | --------------------------------- |
+| 当前策略采样   | 先让当前策略和环境互动，收集一批新经验         | `collect_trajectories(...)`       |
+| 旧策略记录     | 保存采样时每个动作的概率，后面用来比较新旧策略 | `old_logprobs`                    |
+| 优势估计       | 判断每个动作比平均水平好还是差                 | `advantages` / `compute_gae(...)` |
+| 裁剪策略更新   | 更新 Actor，但限制新策略不要离旧策略太远       | `ppo_clip_loss(...)`              |
+| 价值函数训练   | 训练 Critic，让它更会估计状态价值              | `value_loss`                      |
+| 熵奖励         | 保持一定探索，不要过早变得太确定               | `entropy_bonus`                   |
+| 多轮小批量更新 | 同一批数据更新多轮，提高样本利用率             | `n_epochs` / mini-batch           |
 
 因此，**PPO loss 不是 PPO 的全部，而是 PPO 这套方法里最关键的“策略更新规则”**。它负责告诉 Actor：哪些动作概率该提高，哪些该降低，以及变化幅度最多到哪里。
 
 可以把 PPO 理解成一个训练协议：
 
-```text
-用当前策略收集一批数据
-→ 记录旧策略当时怎么选动作
-→ 计算每个动作好不好
-→ 用 PPO-Clip loss 安全更新策略
-→ 同时训练价值函数
-→ 重复这个过程
+```mermaid
+flowchart TD
+    A["用当前策略收集一批数据"] --> B["记录旧策略当时怎么选动作"]
+    B --> C["计算每个动作好不好<br/>advantages"]
+    C --> D["用 PPO-Clip loss 安全更新策略"]
+    D --> E["同时训练价值函数<br/>value loss"]
+    E --> F["进入下一轮采样和更新"]
+    F -. 重复 .-> A
 ```
 
 这里的 “loss” 之所以重要，是因为神经网络最终必须通过反向传播更新参数。**PPO 的思想要真正作用到参数上，必须落成一个可以求梯度的目标函数。** 所以我们会特别重视 PPO loss，但不要把 PPO 缩小成 loss 本身。
 
 ## 第九步：PPO 在代码里到底体现在哪里
 
-如果只保留 PPO **最核心的策略更新**，它其实就是一个很短的函数：
+如果只保留 PPO **最核心的策略更新**，落点就是下面这几行：
 
-```python
-def ppo_clip_loss(old_logprobs, new_logprobs, advantages, clip_eps=0.2):
-    # 1. 计算新旧策略概率比值
-    ratio = torch.exp(new_logprobs - old_logprobs)
+<PpoCodeFocus focus="clip" title="PPO 在代码里的核心落点" />
 
-    # 2. 原始代理目标：如果不限制更新，策略会这样改
-    surr1 = ratio * advantages
-
-    # 3. 裁剪代理目标：把新旧策略比值限制在 [1-eps, 1+eps]
-    clipped_ratio = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
-    surr2 = clipped_ratio * advantages
-
-    # 4. PPO 的保守目标：两者取较小值
-    policy_objective = torch.min(surr1, surr2).mean()
-
-    # 5. 优化器最小化 loss，所以取负号
-    policy_loss = -policy_objective
-
-    # 6. 监控有多少样本触发了裁剪
-    with torch.no_grad():
-        clip_frac = ((ratio - 1.0).abs() > clip_eps).float().mean().item()
-
-    return policy_loss, clip_frac
-```
-
-**这段代码就是前面推导的落点。** 它需要三个主要输入：
+这段代码需要三个主要输入：
 
 | 输入           | 从哪里来                   | 作用                               |
 | -------------- | -------------------------- | ---------------------------------- |
@@ -704,28 +713,20 @@ def ppo_clip_loss(old_logprobs, new_logprobs, advantages, clip_eps=0.2):
 
 它输出一个标量 `policy_loss`。**这个标量就是可以拿去做反向传播的东西**：
 
-```python
-optimizer.zero_grad()
-policy_loss.backward()
-optimizer.step()
-```
+<PpoCodeFocus focus="loss" />
 
-当然，真实 PPO 不只训练 Actor，还要训练 Critic，并且通常会加一个熵奖金鼓励探索。因此实际训练时会把 `policy_loss` 放进完整损失函数：
-
-```python
-loss = policy_loss + vf_coef * value_loss - ent_coef * entropy_bonus
-```
+当然，真实 PPO 不只训练 Actor，还要训练 Critic，并且通常会加一个熵奖金鼓励探索。因此实际训练时会把 `policy_loss` 放进完整损失函数：`loss = policy_loss + vf_coef * value_loss - ent_coef * entropy_bonus`。
 
 所以，如果你已经自己推导出了 PPO，要开始写代码，**只需要按这个顺序把数据接起来**：
 
-```text
-1. 用旧策略收集 states, actions, rewards, dones, old_logprobs, values
-2. 用 rewards 和 values 算 advantages 和 returns
-3. 用当前新策略重新计算 new_logprobs, new_values, entropy
-4. 用 old_logprobs、new_logprobs、advantages 算 PPO policy_loss
-5. 用 new_values 和 returns 算 value_loss
-6. 合成总 loss
-7. loss.backward()，optimizer.step()
+```mermaid
+flowchart TD
+    A["1. 用旧策略收集数据<br/>states, actions, rewards, dones, old_logprobs, values"] --> B["2. 计算训练目标<br/>advantages 和 returns"]
+    B --> C["3. 用当前新策略重新计算<br/>new_logprobs, new_values, entropy"]
+    C --> D["4. 计算 PPO policy_loss<br/>old_logprobs, new_logprobs, advantages"]
+    D --> E["5. 计算 value_loss<br/>new_values 对齐 returns"]
+    E --> F["6. 合成总 loss"]
+    F --> G["7. 反向传播并更新参数<br/>loss.backward(), optimizer.step()"]
 ```
 
 **这就是 PPO 从公式变成训练程序的最小闭环。**
@@ -749,12 +750,12 @@ $$
 
 也就是说，主线应该是：
 
-```text
-重要性采样得到 ratio × advantage
-→ ratio 太远会让旧数据不可靠
-→ clip(ratio, 1-ε, 1+ε)
-→ min(未裁剪目标, 裁剪目标)
-→ 得到 PPO policy_loss
+```mermaid
+flowchart TD
+    A["重要性采样得到代理目标<br/>ratio × advantage"] --> B["ratio 离 1 太远<br/>旧数据会变得不可靠"]
+    B --> C["裁剪 ratio<br/>clip(ratio, 1 - eps, 1 + eps)"]
+    C --> D["取更保守的一项<br/>min(未裁剪目标, 裁剪目标)"]
+    D --> E["得到 PPO policy_loss"]
 ```
 
 TRPO 只是在旁边提醒我们：PPO 的 “Proximal” 来自信任域思想，但写代码时你真正需要落地的是 **`ratio`、`clamp`、`min` 和总损失**。
@@ -781,10 +782,7 @@ $$
 
 对应代码中的总损失计算：
 
-```python
-# 总损失 = 策略损失 + vf_coef * 价值损失 - ent_coef * 熵
-loss = policy_loss + vf_coef * value_loss - ent_coef * entropy_bonus
-```
+<PpoCodeFocus focus="loss" title="价值损失、熵奖金和总 loss" />
 
 ### 10.1 策略损失（Policy Loss）
 
@@ -820,11 +818,7 @@ $$L^{\text{VF}}(\theta) = \mathbb{E}_t \left[ \left( V_\theta(s_t) - V_t^{\text{
 
 为什么需要单独的价值损失？**Critic 的准确性直接影响优势估计 $A_t$ 的质量。** 如果 Critic 预测不准，$A_t$ 就会包含很大的偏差，进而误导 Actor 的更新方向。均方误差损失让 Critic 不断修正自己的预测，使其更接近真实的回报。
 
-代码中：
-
-```python
-value_loss = F.mse_loss(new_values, mb_returns)
-```
+代码中就是 `value_loss = F.mse_loss(new_values, returns[mb])`。它和 `policy_loss` 在同一个更新函数里一起反向传播。
 
 ### 10.3 熵奖金（Entropy Bonus）$H[\pi_\theta]$
 
@@ -836,13 +830,7 @@ $$H[\pi_\theta] = -\mathbb{E}_t \left[ \sum_a \pi_\theta(a|s_t) \log \pi_\theta(
 
 为什么需要熵奖金？PPO 的裁剪机制会限制策略的变化幅度，这在稳定训练的同时也有一个副作用——策略可能过早地"锁定"在某个次优动作上。熵奖金通过在损失函数中奖励不确定性，确保策略始终保留一定的探索动力。这就像在学习过程中始终保持好奇心——即使你已经找到了一个还不错的方法，也要偶尔尝试其他可能性。
 
-代码中：
-
-```python
-entropy_bonus = entropy.mean()
-# 注意总损失中是减号：- ent_coef * entropy_bonus
-# 因为我们要最大化熵（鼓励探索），等价于最小化负熵
-```
+代码中是 `entropy_bonus = entropy.mean()`。注意总损失里是减号：`- ent_coef * entropy_bonus`，因为我们要**最大化熵**，等价于在最小化 loss 时减去这一项。
 
 ### 10.4 三项损失的协作关系
 
@@ -856,7 +844,7 @@ flowchart TD
 
     subgraph Critic_update ["Critic 更新（价值损失）"]
         C1["L^VF: 均方误差"]
-        C2["让 V(s) → 真实回报"]
+        C2["让 V(s) 逼近真实回报"]
         C3["提供更准的 A_t"]
     end
 
@@ -892,47 +880,26 @@ flowchart TD
 
 把所有组件组装起来，**PPO 的训练循环**如下：
 
-```
-循环直到收敛:
-    1. 用当前策略 π_θ 收集 T 步数据 {(s_t, a_t, r_t)}_{t=1}^{T}
-    2. 用 GAE 计算优势估计 Â_t 和目标回报 V_t^targ
-    3. 重复 K 轮:
-        对每个 mini-batch:
-            a. 计算策略比率 r_t(θ) = π_θ(a_t|s_t) / π_old(a_t|s_t)
-            b. 计算 L^CLIP = -min(r_t · Â_t, clip(r_t, 1-ε, 1+ε) · Â_t)
-            c. 计算 L^VF = (V_θ(s_t) - V_t^targ)²
-            d. 计算熵 H[π_θ]
-            e. 总损失 L = L^CLIP + c_1 · L^VF - c_2 · H
-            f. 梯度下降更新 θ
-    4. 更新旧策略: π_old ← π_θ
+```mermaid
+flowchart TD
+    A["循环开始<br/>当前策略 pi_theta"] --> B["1. 收集 T 步数据<br/>{s_t, a_t, r_t}"]
+    B --> C["2. 用 GAE 计算<br/>优势估计 A_hat_t<br/>目标回报 V_t^targ"]
+    C --> D["3. 重复 K 轮<br/>按 mini-batch 更新"]
+    D --> E["计算策略比率<br/>r_t = pi_theta / pi_old"]
+    E --> F["计算裁剪策略损失<br/>L^CLIP"]
+    F --> G["计算价值损失<br/>L^VF"]
+    G --> H["计算策略熵<br/>H[pi_theta]"]
+    H --> I["合成总损失<br/>L = L^CLIP + c1 L^VF - c2 H"]
+    I --> J["梯度下降更新参数<br/>theta"]
+    J --> K{"K 轮完成？"}
+    K -- "否" --> D
+    K -- "是" --> L["进入下一批数据<br/>旧策略记录更新为当前策略"]
+    L -. "继续训练" .-> A
 ```
 
 对照代码中的实现，每一步都可以找到对应的代码行：
 
-```python
-# 步骤 1：收集轨迹
-batch, ep_rewards = collect_trajectories(model, env, n_steps=2048)
-
-# 步骤 2：计算 GAE
-advantages, returns = compute_gae(batch["rewards"], batch["values"], batch["dones"])
-
-# 步骤 3：多轮更新
-for epoch in range(n_epochs):           # K 轮
-    for mini-batch in ...:
-        new_logprobs, new_values, entropy = model.evaluate(mb_states, mb_actions)
-        # 步骤 3a-b：策略损失
-        policy_loss, clip_frac = ppo_clip_loss(
-            mb_old_logprobs, new_logprobs, mb_advantages
-        )
-        # 步骤 3c：价值损失
-        value_loss = F.mse_loss(new_values, mb_returns)
-        # 步骤 3d-e：总损失
-        loss = policy_loss + vf_coef * value_loss - ent_coef * entropy.mean()
-        # 步骤 3f：梯度更新
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-```
+<PpoCodeFocus focus="overview" title="完整 PPO 训练程序回看" />
 
 几个**关键设计决策**的直觉：
 
@@ -994,5 +961,5 @@ $$L^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) \cdot A_
 
 到这一步，你已经看到了 **PPO 的完整数学图景**：从策略梯度到重要性采样代理目标，再到 **`ratio`、`clamp`、`min` 组成的 PPO-Clip 策略损失**，最后合成**可以直接反向传播的总损失**。接下来的两节会分别深入两个关键细节：
 
-- **裁剪机制的直觉和实验** → [信任域与裁剪](./trust-region-clipping)
-- **GAE 的推导和 LLM 对齐中的应用** → [GAE、奖励模型与 LLM 对齐](./gae-reward-model)
+- **裁剪机制的直觉和实验**：[信任域与裁剪](./trust-region-clipping)
+- **GAE 的推导和 LLM 对齐中的应用**：[GAE、奖励模型与 LLM 对齐](./gae-reward-model)

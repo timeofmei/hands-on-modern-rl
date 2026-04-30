@@ -2,6 +2,161 @@
 
 上一章我们深入了 DPO 的理论与实践，看到它通过数学变换绕过了 RM。但 DPO 是 offline 方法——它只能从固定的偏好数据集中学习，不能在线探索。这一节我们换一个思路：**用 GRPO 在线训练一个模型做数学推理**，亲眼看看"干掉 Critic"之后训练过程是什么样的，然后深入理解为什么组内归一化能替代 Critic。
 
+这里先解释一下 Critic 是什么。在 PPO 这类 Actor-Critic 方法里，**Actor** 是负责生成回答的策略模型，**Critic** 则像一个“价值评估器”：它不直接生成回答，而是估计“当前已经写到这里，后面大概能拿到多少总奖励”。用公式写就是价值函数：
+
+$$
+V_\phi(s_t)
+$$
+
+其中 $s_t$ 是当前状态。对语言模型来说，可以粗略理解为“prompt 加上已经生成的前几个 token”；$\phi$ 是 Critic 自己的参数。Critic 的作用是给策略更新提供一个基线：如果某个回答的真实奖励比 Critic 预估的更高，就说明这个回答比预期好，应该提高概率；如果比预期低，就应该降低概率。
+
+问题在于，LLM 场景里的 Critic 往往很贵也很难训。它通常也是一个大模型，需要额外显存；而且它要从一段还没写完的文本预测最终奖励，监督信号又常常只在回答末尾出现，所以训练噪声很大。GRPO 想做的事情就是：**不再单独训练这个 Critic，而是用同一个 prompt 下多个回答的平均分，临时充当“基线”**。这就是后面“组内归一化能替代 Critic”的核心来源。
+
+## 从 RL 到 PPO，再到 GRPO
+
+GRPO 和 DPO 一样，也不是从天上掉下来的。它同样从语言模型强化学习出发，但它选择保留 PPO 的在线采样能力，只替换掉最麻烦的 Critic。
+
+先把语言模型重新放回强化学习里：
+
+| 强化学习概念 | 在数学推理模型里是什么                                  |
+| ------------ | ------------------------------------------------------- |
+| 状态 $s_t$   | 题目 prompt 加上已经写出的推理步骤，也就是 $(x,y_{<t})$ |
+| 动作 $a_t$   | 下一步生成的 token，也就是 $y_t$                        |
+| 轨迹 $\tau$  | 一整段推理过程和最终答案                                |
+| 奖励 $R$     | 答案是否正确、格式是否符合要求                          |
+| 策略 $\pi$   | 当前正在训练的语言模型                                  |
+
+如果照 PPO 的路线走，模型会生成回答，奖励函数给最终答案打分，Critic 再估计一个基线 $V_\phi(s_t)$，优势大致写成：
+
+$$
+A_t
+\approx
+R
+-
+V_\phi(s_t)
+$$
+
+这句话的意思是：**不要只看奖励高不高，要看它有没有比 Critic 的预期更好**。这在传统强化学习里很自然，但在 LLM 数学推理里就很重：Critic 也是大模型，还要从未完成的推理文本预测最终得分。
+
+GRPO 的想法是保留 PPO 最有用的部分，也就是 **ratio + clip**，但把 Critic 基线换成“同一道题的一组回答的平均分”。DeepSeekMath 论文提出 GRPO 时，明确说它 **“foregoes the critic model”**，并用组内分数来估计基线。
+
+![GRPO 从 PPO 中替换 Critic 基线](./images/grpo-from-ppo.svg)
+
+所以 GRPO 和 PPO 的关系可以先这样记：
+
+- PPO 问：这个回答比 Critic 预估的平均水平好吗？
+- GRPO 问：这个回答比同一道题的其他回答好吗？
+- PPO 和 GRPO 都还会用概率比值和裁剪，限制策略不要一下子改太猛。
+
+> 论文脉络：GRPO 来自 DeepSeekMath 论文 [DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models](https://arxiv.org/abs/2402.03300)。它不是完全抛弃 PPO，而是在 PPO 框架里去掉 Critic，用组内相对奖励构造优势。
+
+先把 GRPO 说清楚：**GRPO 不是一个新的模型，也不只是“组内归一化”这个公式。GRPO 是一种在线训练策略模型的方法。**
+
+在 GRPO 里，被训练的对象仍然是语言模型策略：
+
+$$
+\pi_\theta(y \mid x)
+$$
+
+这里 $x$ 是题目或 prompt，$y$ 是模型生成的回答。GRPO 的训练方式是：对同一个 prompt 一次生成多个回答，把这些回答放在同一组里打分，然后问一句很朴素的问题：**这个回答在同组里比平均水平更好吗？**
+
+如果某个回答比同组平均水平好，它的优势 $A_i$ 就是正的，训练会提高它的概率；如果比同组平均水平差，优势就是负的，训练会降低它的概率。最后更新策略时，GRPO 仍然会使用 PPO-style 的 `ratio + clip`，避免新策略离旧策略太远。
+
+所以 GRPO 可以先理解成：
+
+> **GRPO = 在线组采样 + 规则/奖励打分 + 组内相对优势 + PPO-style 裁剪更新。**
+
+这句话看起来有点密，先用一个小例子把它拆开。假设 prompt 是一道题：
+
+> 小明有 3 个苹果，又买了 2 个，现在一共有几个？
+
+GRPO 不只让模型回答一次，而是对同一道题采样多个回答。比如一次采样 4 个：
+
+| 回答 | 内容                        | 规则奖励 |
+| ---- | --------------------------- | -------- |
+| A    | “3 + 2 = 5，所以答案是 5。” | $1.5$    |
+| B    | “答案是 5。”                | $1.0$    |
+| C    | “应该是 6。”                | $0.0$    |
+| D    | “我不确定，可能是 4。”      | $0.0$    |
+
+这 4 个回答的平均奖励是：
+
+$$
+\bar r = \frac{1.5+1.0+0.0+0.0}{4}=0.625
+$$
+
+于是 GRPO 不再只看“这个回答得了多少分”，而是看“它比同组平均水平高还是低”：
+
+| 回答 | 奖励 $r_i$ | 和平均分比较       | 训练方向                   |
+| ---- | ---------- | ------------------ | -------------------------- |
+| A    | $1.5$      | $1.5-0.625=+0.875$ | 比平均好，**提高它的概率** |
+| B    | $1.0$      | $1.0-0.625=+0.375$ | 也比平均好，小幅提高概率   |
+| C    | $0.0$      | $0.0-0.625=-0.625$ | 比平均差，**降低它的概率** |
+| D    | $0.0$      | $0.0-0.625=-0.625$ | 比平均差，降低它的概率     |
+
+这就是“组内相对优势”的直觉：**同一道题里，谁比平均好，就多学谁；谁比平均差，就少生成谁**。最后的 PPO-style 裁剪更新只是再加一层保险：提高或降低概率都可以，但一次不要改得太猛。
+
+下面是一份最小手写 GRPO 代码地图。它不是 `trl` 的工程源码，而是把 GRPO 的数学结构摊开给你看：每个公式后面都能回到这份代码里的某几行。
+
+<GrpoCodeFocus focus="overview" />
+
+这份代码可以分成八块：
+
+| 标记    | 代码部分                          | 后文会解释什么                                |
+| ------- | --------------------------------- | --------------------------------------------- |
+| **[A]** | `sample_groups`                   | 为什么每个 prompt 要生成多个回答              |
+| **[B]** | `rule_reward` / `score_responses` | 奖励从哪里来，为什么数学题不需要 RM           |
+| **[C]** | `group_advantages`                | 组内均值如何替代 Critic 基线                  |
+| **[D]** | `sequence_logprob`                | 如何给一整段回答算 $\log \pi_\theta(y\mid x)$ |
+| **[E]** | `grpo_loss` 前半段                | `ratio`、`clip` 和 PPO-style 策略更新         |
+| **[F]** | `approx_kl`                       | 为什么还要限制 Policy 偏离 Reference          |
+| **[G]** | `train_step`                      | 采样、打分、优势、loss、反向传播如何接起来    |
+| **[H]** | `train_grpo`                      | 为什么 GRPO 是在线训练，每轮都生成新回答      |
+
+## 读公式前：GRPO 的一组样本长什么样
+
+GRPO 的训练样本不是“一个 prompt 配一个回答”，而是**一个 prompt 配一组回答**。假设一个 batch 里有多个题目，用 $j$ 表示第几个题目，用 $i$ 表示这个题目下第几个回答：
+
+$$
+x_j
+\quad\longrightarrow\quad
+\{y_{j,1},y_{j,2},\ldots,y_{j,G}\}
+$$
+
+这里每个字母的意思是：
+
+- $x_j$：第 $j$ 个 prompt，也就是一道题或一个问题。
+- $G$：group size，每个 prompt 生成几个回答。代码里的 `num_generations=8` 就是 $G=8$。
+- $y_{j,i}$：第 $j$ 个 prompt 下生成的第 $i$ 个回答。
+- $\pi_{\text{old}}$：生成这批回答时使用的旧策略。它负责采样数据。
+- $\pi_\theta$：正在被更新的新策略。它负责学习，让好回答更可能出现。
+
+采样过程可以写成：
+
+$$
+y_{j,i}
+\sim
+\pi_{\text{old}}(\cdot \mid x_j),
+\qquad
+i=1,\ldots,G
+$$
+
+符号 $\sim$ 表示“从某个分布中采样”。$\pi_{\text{old}}(\cdot \mid x_j)$ 里的点号 $\cdot$ 表示“所有可能回答的位置”，意思是：给定 prompt $x_j$，旧策略会给所有可能回答分配概率，然后我们从这个分布里抽出 $G$ 个回答。
+
+代码里对应的是 **[A] 组采样**：
+
+<GrpoCodeFocus focus="sampling" />
+
+每个回答生成后，都要得到一个奖励：
+
+$$
+r_{j,i}
+=
+R(x_j,y_{j,i})
+$$
+
+这里 $R$ 是奖励函数，$r_{j,i}$ 是一个标量。数学题里，$R$ 可以很简单：答案对就加分，格式规范也加分。GRPO 的关键不是“奖励函数一定很复杂”，而是：**同一道题下的多个回答会放在一起比较**。
+
 ## 7.4.1 GRPO 训练实验
 
 ### 实验设置：GSM8K + 规则奖励
@@ -43,6 +198,10 @@ print(rule_based_reward(prompt, bad, '63'))   # 0.5
 
 注意这里的关键区别：**不需要训练任何 RM，规则就是裁判**。数学题有标准答案，直接比较就行。这种"可验证奖励"正是 RLVR 的核心思想（8.3 节会深入讨论）。
 
+在手写代码地图中，奖励函数对应的是 **[B]**。它只接收回答和标准答案，返回一个标量奖励：
+
+<GrpoCodeFocus focus="reward" />
+
 ### 运行 GRPO 训练
 
 我们使用 `trl` 库提供的 GRPO 实现。和 PPO 相比，GRPO 不需要 Critic 模型：
@@ -77,6 +236,10 @@ trainer = GRPOTrainer(
 trainer.train()  # 开始训练——不需要 Critic，不需要 RM
 trainer.save_model("./grpo_gsm8k/final_model")
 ```
+
+如果把 `GRPOTrainer` 内部最关键的训练步骤摊开，就是“先组采样，再打分，再算优势，再更新策略”：
+
+<GrpoCodeFocus focus="train" />
 
 ### 训练前后：推理步骤的变化
 
@@ -140,11 +303,82 @@ flowchart LR
 
 ### GRPO 的核心思路
 
-GRPO 的想法出奇地简单。对于每个问题 $x$，采样 $k$ 个回答 $\{y_1, y_2, \ldots, y_k\}$，用奖励函数给每个回答打分 $\{r_1, r_2, \ldots, r_k\}$，然后做**组内归一化**：
+GRPO 的想法出奇地简单。对于同一个问题 $x_j$，先采样 $G$ 个回答，再得到 $G$ 个奖励：
 
-$$A_i = \frac{r_i - \text{mean}(r_1, \ldots, r_k)}{\text{std}(r_1, \ldots, r_k)}$$
+$$
+\{r_{j,1},r_{j,2},\ldots,r_{j,G}\}
+$$
 
-这个公式做的事情和 Critic 一模一样——**减去均值就是"比平均好了多少"**。只不过 Critic 用一个单独的神经网络来预测"均值"（$V(s)$），而 GRPO 直接用同一组回答的实际得分均值。
+然后计算这组奖励的均值：
+
+$$
+\bar r_j
+=
+\frac{1}{G}
+\sum_{i=1}^{G}
+r_{j,i}
+$$
+
+这里：
+
+- $\bar r_j$：第 $j$ 个 prompt 这一组回答的平均奖励。
+- $\frac{1}{G}\sum_{i=1}^G$：把 $G$ 个回答的奖励加起来，再除以 $G$。
+- $r_{j,i}$：第 $j$ 个 prompt 下第 $i$ 个回答的奖励。
+
+再计算这组奖励的标准差：
+
+$$
+s_j
+=
+\sqrt{
+\frac{1}{G}
+\sum_{i=1}^{G}
+(r_{j,i}-\bar r_j)^2
+}
+$$
+
+这里：
+
+- $s_j$：第 $j$ 组奖励的标准差，表示这一组回答分数差异有多大。
+- $(r_{j,i}-\bar r_j)^2$：第 $i$ 个回答离平均水平有多远，平方是为了不让正负抵消。
+- $\sqrt{\cdot}$：开方，把尺度变回奖励原来的尺度附近。
+
+最后得到第 $i$ 个回答的组内优势：
+
+$$
+\hat A_{j,i}
+=
+\frac{
+r_{j,i}-\bar r_j
+}{
+s_j+\epsilon
+}
+$$
+
+这就是 GRPO 的核心公式。它读起来很朴素：
+
+- $r_{j,i}-\bar r_j$：这个回答比同题平均水平高多少。
+- 除以 $s_j+\epsilon$：把不同题目的奖励尺度拉到相近范围。
+- $\epsilon$：一个很小的数，防止标准差为 0 时除以 0。
+- $\hat A_{j,i}>0$：这个回答比同组平均好，应该提高概率。
+- $\hat A_{j,i}<0$：这个回答比同组平均差，应该降低概率。
+- $\hat A_{j,i}\approx 0$：这个回答和平均水平差不多，不需要太强更新。
+
+如果同一组回答奖励全都一样，$s_j$ 会接近 0，代码会把优势设成 0。这表示这道题暂时没有可学习的差异：大家都对，或者大家都错，模型不知道该更偏向哪一个回答。
+
+这个公式做的事情和 Critic 很像——**减去均值就是“比平均好了多少”**。只不过 Critic 用一个单独的神经网络来预测基线 $V(s)$，而 GRPO 直接用同一组回答的实际得分均值 $\bar r_j$ 当基线。
+
+代码里对应的是 **[C] 组内优势**：
+
+<GrpoCodeFocus focus="advantages" />
+
+代码对应关系是：
+
+- `grouped_rewards = rewards.view(-1, group_size)`：把一维奖励列表重新排成“每行一个 prompt、每行 $G$ 个回答”的形状。
+- `group_mean = grouped_rewards.mean(dim=1, keepdim=True)`：计算每个 prompt 的 $\bar r_j$。
+- `group_std = grouped_rewards.std(dim=1, keepdim=True)`：计算每个 prompt 的 $s_j$。
+- `advantages = (grouped_rewards - group_mean) / (group_std + eps)`：实现 $\hat A_{j,i}$。
+- `torch.where(group_std < eps, 0, advantages)`：如果一组回答没有差异，就不给这组样本训练信号。
 
 ```mermaid
 flowchart TD
@@ -200,6 +434,147 @@ flowchart TD
 **方差更低**：同一组内的回答共享相同的 prompt，唯一的差异是模型生成的随机性。这种"控制变量"式的比较比跨样本的绝对评分更稳定。
 
 一句话总结：**GRPO = PPO 的裁剪机制 + 用组内排名替代 Critic**。
+
+“PPO 的裁剪机制”在代码里仍然是 `ratio`、`clamp` 和 `min`，只不过这里的 `advantages` 来自组内比较。
+
+先定义新旧策略的概率比值：
+
+$$
+\rho_{j,i}(\theta)
+=
+\frac{
+\pi_\theta(y_{j,i}\mid x_j)
+}{
+\pi_{\text{old}}(y_{j,i}\mid x_j)
+}
+$$
+
+这里：
+
+- $\pi_{\text{old}}(y_{j,i}\mid x_j)$：采样这条回答时，旧策略给它的概率。
+- $\pi_\theta(y_{j,i}\mid x_j)$：当前正在更新的新策略给它的概率。
+- $\rho_{j,i}(\theta)$：新策略相对旧策略，把这条回答的概率放大或缩小了多少倍。
+
+实际代码里不会直接除两个很小的概率，而是先算 log probability，再相减取指数：
+
+$$
+\rho_{j,i}(\theta)
+=
+\exp
+\left(
+\log \pi_\theta(y_{j,i}\mid x_j)
+-
+\log \pi_{\text{old}}(y_{j,i}\mid x_j)
+\right)
+$$
+
+如果 $\rho=1$，说明新旧策略对这条回答的概率一样；如果 $\rho=1.2$，说明新策略把它的概率提高了 20%；如果 $\rho=0.8$，说明新策略把它的概率压低了 20%。
+
+有了比值和组内优势，GRPO 的裁剪目标可以写成：
+
+$$
+\mathcal{J}_{\text{GRPO}}^{\text{clip}}(\theta)
+=
+\mathbb{E}_{j,i}
+\left[
+\min
+\left(
+\rho_{j,i}(\theta)\hat A_{j,i},
+\operatorname{clip}
+(\rho_{j,i}(\theta),1-\epsilon_{\text{clip}},1+\epsilon_{\text{clip}})
+\hat A_{j,i}
+\right)
+\right]
+$$
+
+每个符号的意思是：
+
+- $\mathbb{E}_{j,i}$：对 batch 里的所有 prompt 和所有组内回答取平均。
+- $\hat A_{j,i}$：刚才算出的组内优势。
+- $\epsilon_{\text{clip}}$：裁剪范围，常见值是 0.2。
+- $\operatorname{clip}(\rho,1-\epsilon_{\text{clip}},1+\epsilon_{\text{clip}})$：把概率比值限制在一个区间内。例如 $\epsilon_{\text{clip}}=0.2$ 时，$\rho$ 会被限制在 $[0.8,1.2]$。
+- $\min(\cdot,\cdot)$：选择更保守的那个目标，避免一次更新太大。
+
+为什么要裁剪？因为这批回答是 $\pi_{\text{old}}$ 生成的。如果训练几步后 $\pi_\theta$ 已经离 $\pi_{\text{old}}$ 很远，那么这批数据就不再能可靠代表新策略的行为。裁剪的作用就是：**允许模型学习，但不允许它因为同一批数据一下子改得太猛**。
+
+<GrpoCodeFocus focus="clip" />
+
+在代码里，`new_logprobs` 是 $\log \pi_\theta(y_{j,i}\mid x_j)$，`old_logprobs` 是 $\log \pi_{\text{old}}(y_{j,i}\mid x_j)$。所以：
+
+- `ratio = torch.exp(new_logprobs - old_logprobs)`：实现 $\rho_{j,i}(\theta)$。
+- `surr1 = ratio * advantages`：不裁剪时的策略目标。
+- `clipped_ratio = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps)`：把 $\rho$ 限制在 $[1-\epsilon_{\text{clip}},1+\epsilon_{\text{clip}}]$。
+- `surr2 = clipped_ratio * advantages`：裁剪后的策略目标。
+- `policy_loss = -torch.min(surr1, surr2).mean()`：取保守目标，并加负号变成要最小化的 loss。
+
+注意上面的 $\mathcal{J}_{\text{GRPO}}^{\text{clip}}$ 是“想最大化”的目标；代码里的优化器默认最小化 loss，所以会写成：
+
+$$
+\text{policy\_loss}
+=
+-
+\mathcal{J}_{\text{GRPO}}^{\text{clip}}(\theta)
+$$
+
+这就是为什么代码中有一个负号。
+
+同时，GRPO 通常还会保留一个 KL 惩罚，让 Policy 不要离 Reference 太远。手写代码里使用的是一个常见的近似 KL：
+
+$$
+\widehat D_{\text{KL}}
+=
+\exp(\Delta)
+-
+\Delta
+-
+1,
+\qquad
+\Delta
+=
+\log \pi_{\text{ref}}(y\mid x)
+-
+\log \pi_\theta(y\mid x)
+$$
+
+这个近似有一个好性质：当 Policy 和 Reference 给出的 log probability 一样时，$\Delta=0$，于是
+
+$$
+\exp(0)-0-1=0
+$$
+
+也就是说，两个模型越接近，KL 惩罚越小；偏离越大，惩罚越大。
+
+最后总损失可以写成：
+
+$$
+\mathcal{L}_{\text{GRPO}}
+=
+-
+\mathcal{J}_{\text{GRPO}}^{\text{clip}}(\theta)
++
+\beta_{\text{KL}}
+\widehat D_{\text{KL}}
+$$
+
+这里 $\beta_{\text{KL}}$ 是 KL 惩罚的权重，对应代码里的 `kl_coef`。它越大，模型越保守；它越小，模型越愿意离开 Reference 去探索高奖励回答。
+
+<GrpoCodeFocus focus="kl" />
+
+这里的代码对应关系是：
+
+- `log_ratio_ref = ref_logprobs - new_logprobs`：实现 $\Delta$。
+- `approx_kl = (torch.exp(log_ratio_ref) - log_ratio_ref - 1.0).mean()`：实现 $\widehat D_{\text{KL}}$。
+- `loss = policy_loss + kl_coef * approx_kl`：实现总损失 $\mathcal{L}_{\text{GRPO}}$。
+
+把所有步骤连起来，GRPO 的一次训练就是：
+
+1. 对每个 prompt 采样 $G$ 个回答。
+2. 用规则或奖励函数给每个回答打分。
+3. 在同一个 prompt 的组内计算 $\bar r_j$、$s_j$ 和 $\hat A_{j,i}$。
+4. 用新旧策略 log probability 算 $\rho_{j,i}(\theta)$。
+5. 用 PPO-style clip 控制更新幅度。
+6. 加上 Reference KL 惩罚。
+7. 反向传播，只更新 Policy。
 
 ## 7.4.3 实验对比与参数调优
 
