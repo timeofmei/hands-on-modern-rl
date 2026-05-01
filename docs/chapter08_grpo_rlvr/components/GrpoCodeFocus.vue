@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import { highlightPython } from '../../shared/code-focus-utils.js'
 import grpoCode from '../snippets/grpo-code-map.py?raw'
 
 const props = defineProps({
@@ -16,6 +17,7 @@ const props = defineProps({
 const lines = grpoCode.trimEnd().split('\n')
 const hovered = ref(false)
 const pinned = ref(false)
+const suppressHover = ref(false)
 
 const segments = [
   { id: 'A', label: '组采样', range: [5, 25] },
@@ -89,7 +91,9 @@ const focusMap = {
 }
 
 const config = computed(() => focusMap[props.focus] || focusMap.overview)
-const isExpanded = computed(() => hovered.value || pinned.value)
+const isExpanded = computed(
+  () => pinned.value || (hovered.value && !suppressHover.value)
+)
 const activeTitle = computed(() => props.title || config.value.title)
 const toggleLabel = computed(() => {
   if (pinned.value) return '收起完整代码'
@@ -123,6 +127,7 @@ const visibleRows = computed(() => {
         type: 'code',
         number,
         text: lines[number - 1],
+        html: highlightPython(lines[number - 1]),
         isHighlight: highlighted.value.has(number),
         isMarker: lines[number - 1].trimStart().startsWith('# [')
       })
@@ -135,7 +140,29 @@ const visibleRows = computed(() => {
 })
 
 function togglePinned() {
-  pinned.value = !pinned.value
+  if (pinned.value) {
+    pinned.value = false
+    hovered.value = false
+    suppressHover.value = true
+    return
+  }
+
+  pinned.value = true
+  suppressHover.value = false
+}
+
+function expandAndPin() {
+  pinned.value = true
+  suppressHover.value = false
+}
+
+function handleMouseEnter() {
+  if (!suppressHover.value) hovered.value = true
+}
+
+function handleMouseLeave() {
+  hovered.value = false
+  suppressHover.value = false
 }
 </script>
 
@@ -143,42 +170,48 @@ function togglePinned() {
   <section
     class="grpo-code-focus"
     :class="{ 'is-expanded': isExpanded }"
-    @mouseenter="hovered = true"
-    @mouseleave="hovered = false"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
   >
-    <div class="grpo-code-focus-header" @click="togglePinned">
+    <button
+      class="grpo-code-focus-header"
+      type="button"
+      :aria-expanded="isExpanded"
+      @click="togglePinned"
+    >
       <div class="grpo-code-focus-title">
         <span class="grpo-code-focus-kicker">GRPO code lens</span>
         <strong>{{ activeTitle }}</strong>
       </div>
-      <button
-        class="grpo-code-focus-toggle"
-        type="button"
-        :aria-expanded="isExpanded"
-        @click.stop="togglePinned"
-      >
+      <span class="grpo-code-focus-toggle">
         {{ toggleLabel }}
-      </button>
-    </div>
+      </span>
+    </button>
 
     <div class="grpo-code-focus-segments" aria-label="GRPO 代码结构">
-      <span
+      <button
         v-for="segment in segments"
         :key="segment.id"
         class="grpo-code-focus-segment"
         :class="{ 'is-active': activeSegments.has(segment.id) }"
+        type="button"
+        @click="expandAndPin"
       >
         <b>[{{ segment.id }}]</b>
         {{ segment.label }}
-      </span>
+      </button>
     </div>
 
-    <div class="grpo-code-focus-status">
+    <button class="grpo-code-focus-status" type="button" @click="togglePinned">
       <span>{{ isExpanded ? '完整代码视图' : '局部重点视图' }}</span>
-      <span>移入或点击可查看全局位置</span>
-    </div>
+      <span>{{ pinned ? '点击收起局部视图' : '点击固定完整代码' }}</span>
+    </button>
 
-    <pre class="grpo-code-focus-pre" tabindex="0"><code><template
+    <pre
+      class="grpo-code-focus-pre"
+      tabindex="0"
+      data-lang="python"
+    ><code class="language-python"><template
       v-for="row in visibleRows"
       :key="row.type === 'gap' ? row.id : row.number"
     ><span v-if="row.type === 'gap'" class="grpo-code-focus-gap">        ⋮
@@ -189,7 +222,7 @@ function togglePinned() {
         'is-highlight': row.isHighlight,
         'is-marker': row.isMarker
       }"
-    ><span class="grpo-code-focus-number">{{ String(row.number).padStart(3, ' ') }}</span><span class="grpo-code-focus-text">{{ row.text || ' ' }}</span>
+    ><span class="grpo-code-focus-number">{{ String(row.number).padStart(3, ' ') }}</span><span class="grpo-code-focus-text" v-html="row.html"></span>
 </span></template></code></pre>
   </section>
 </template>
@@ -209,10 +242,16 @@ function togglePinned() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   padding: 12px 14px;
   border-bottom: 1px solid var(--vp-c-divider);
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
   background: var(--vp-c-bg-soft);
+  font: inherit;
   cursor: pointer;
+  text-align: left;
 }
 
 .grpo-code-focus-title {
@@ -237,6 +276,8 @@ function togglePinned() {
 
 .grpo-code-focus-toggle {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
   min-height: 30px;
   padding: 0 10px;
   border: 1px solid var(--vp-c-divider);
@@ -270,8 +311,10 @@ function togglePinned() {
   border-radius: 999px;
   color: var(--vp-c-text-2);
   background: var(--vp-c-bg-soft);
+  font: inherit;
   font-size: 12px;
   line-height: 1.3;
+  cursor: pointer;
 }
 
 .grpo-code-focus-segment.is-active {
@@ -285,14 +328,22 @@ function togglePinned() {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  width: 100%;
   padding: 7px 14px;
+  border-top: 0;
+  border-right: 0;
   border-bottom: 1px solid var(--vp-c-divider);
+  border-left: 0;
   color: var(--vp-c-text-3);
   background: var(--vp-code-block-bg);
+  font: inherit;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .grpo-code-focus-pre {
+  position: relative;
   max-height: 460px;
   margin: 0;
   padding: 10px 0;
@@ -301,6 +352,19 @@ function togglePinned() {
   font-size: 13px;
   line-height: 1.55;
   background: var(--vp-code-block-bg);
+}
+
+.grpo-code-focus-pre::before {
+  content: attr(data-lang);
+  position: sticky;
+  top: 0;
+  float: right;
+  padding: 0 12px 4px;
+  color: var(--vp-c-text-3);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  user-select: none;
 }
 
 .grpo-code-focus.is-expanded .grpo-code-focus-pre {
@@ -339,6 +403,33 @@ function togglePinned() {
   white-space: pre;
 }
 
+.grpo-code-focus-text :deep(.py-keyword) {
+  color: #cf222e;
+  font-weight: 700;
+}
+
+.grpo-code-focus-text :deep(.py-builtin) {
+  color: #8250df;
+}
+
+.grpo-code-focus-text :deep(.py-string) {
+  color: #0a7a3d;
+}
+
+.grpo-code-focus-text :deep(.py-number) {
+  color: #0550ae;
+}
+
+.grpo-code-focus-text :deep(.py-comment) {
+  color: #6e7781;
+  font-style: italic;
+}
+
+.grpo-code-focus-text :deep(.py-decorator) {
+  color: #953800;
+  font-weight: 700;
+}
+
 .grpo-code-focus-line.is-marker {
   color: var(--vp-c-brand-1);
   font-weight: 700;
@@ -356,6 +447,30 @@ function togglePinned() {
 
 .dark .grpo-code-focus-line.is-highlight {
   background: rgba(129, 140, 248, 0.16);
+}
+
+.dark .grpo-code-focus-text :deep(.py-keyword) {
+  color: #ff7b72;
+}
+
+.dark .grpo-code-focus-text :deep(.py-builtin) {
+  color: #d2a8ff;
+}
+
+.dark .grpo-code-focus-text :deep(.py-string) {
+  color: #a5d6ff;
+}
+
+.dark .grpo-code-focus-text :deep(.py-number) {
+  color: #79c0ff;
+}
+
+.dark .grpo-code-focus-text :deep(.py-comment) {
+  color: #8b949e;
+}
+
+.dark .grpo-code-focus-text :deep(.py-decorator) {
+  color: #ffa657;
 }
 
 @media (max-width: 640px) {
