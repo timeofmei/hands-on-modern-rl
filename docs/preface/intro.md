@@ -1,5 +1,15 @@
 # 写在开头
 
+::: info Note
+希望本开源教程能够让更多人拥有向智能上限发起攀登的勇气，解决更多通往 AGI 道路上的问题。
+
+当前教程快速迭代中。建议只看非 🚧 状态的章节，🚧 状态的章节很可能有错误，也欢迎修正和建议。欢迎给 [GitHub 仓库](https://github.com/walkinglabs/hands-on-modern-rl) 点个 Star 🌟 加速一下更新～
+:::
+
+::: tip 寻求帮助
+由于资源稀缺问题，我们正在寻求显卡支持，如果您有显卡使用方式愿意支持非常欢迎联系 [physicoada@gmail.com](mailto:physicoada@gmail.com)。
+:::
+
 ## 为什么需要强化学习？
 
 2019 年，强化学习领域的奠基人之一理查德·萨顿（Richard Sutton）写了一篇不到两页的短文，题目叫《苦涩的教训》（[The Bitter Lesson](http://www.incompleteideas.net/IncIdeas/BitterLesson.html)）。他回顾了人工智能 70 年的历史，得出了一个让许多研究者难以接受的结论：
