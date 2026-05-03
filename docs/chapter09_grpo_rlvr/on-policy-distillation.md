@@ -513,16 +513,16 @@ Round 3: 可选，观察是否继续提升
 
 每次跑 OPD，至少记录这张表：
 
-| 项目              | 内容                                      |
-| ----------------- | ----------------------------------------- |
-| student / teacher | 模型名、参数量、是否同族                  |
-| 数据              | prompt 来源、数量、是否和评测去重         |
-| rollout           | 每题采样数、temperature、max tokens       |
-| reward            | teacher log-prob 是否长度归一化、是否裁剪 |
-| 训练              | online 还是 offline、steps、LoRA rank     |
-| 评测              | 任务分数、长度、重复率、人工样例          |
+| 项目              | 内容                                             |
+| ----------------- | ------------------------------------------------ |
+| student / teacher | 模型名、参数量、是否同族                         |
+| 数据              | prompt 来源、数量、是否和评测去重                |
+| rollout           | 每题采样数、temperature、max tokens              |
+| reward            | teacher log-prob 是否长度归一化、是否裁剪        |
+| 训练              | online 还是 offline、steps、LoRA rank            |
+| 评测              | 任务分数、长度、重复率、人工样例                 |
 | insight 记录      | teacher 学到了什么新东西，student 是否真的吸收了 |
-| 结论              | 继续 online、用 Lightning、还是回去做 SFT |
+| 结论              | 继续 online、用 Lightning、还是回去做 SFT        |
 
 这张表比单看 loss 重要得多。OPD 的 loss 下降只能说明 student 更像 teacher，不自动说明模型真的更会做题。
 
