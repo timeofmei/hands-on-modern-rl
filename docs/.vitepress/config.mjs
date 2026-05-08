@@ -609,7 +609,7 @@ const zhSidebar = {
               text: '3.4 DP、MC 与 TD',
               link: '/chapter03_mdp/dp-mc-td'
             },
-            { text: '3.5 动作价值函数', link: '/chapter03_mdp/value-q' },
+            { text: '3.5 从 Q 到 Q-Learning', link: '/chapter03_mdp/value-q' },
             {
               text: '3.6 从价值到策略',
               link: '/chapter03_mdp/policy-objective'

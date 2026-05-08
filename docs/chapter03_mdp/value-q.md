@@ -1,374 +1,219 @@
-# 3.5 Q(s,a)：给动作打分
+# 3.5 从 Q 到 Q-Learning
 
-## 本节导读
+3.3 节已经引入了动作价值函数 $Q(s,a)$：它不是问“这个状态整体有多好”，而是问“在这个状态下先做动作 $a$，长期看有多好”。3.4 节又比较了 DP、MC 和 TD：它们本质上都是在更新价值表，只是用到的信息不同。
 
-**核心内容**
+现在把这两条线合起来：**如果价值表里存的不是 $V(s)$，而是 $Q(s,a)$，智能体就可以直接根据这张表做动作。** 这一步正是 Q-Learning 和 DQN 的起点。
 
-- 掌握动作价值函数 $Q^\pi(s,a)$：在状态 $s$ 先做动作 $a$，之后按策略行动的期望回报。
-- 理解 $V(s)$ 与 $Q(s,a)$ 的关系，以及为什么 $Q$ 能直接用于动作选择。
-- 学会用 Q 的贝尔曼方程推出最优动作价值 $Q^*$ 和最优策略。
+还是用三格走廊承接前面的例子：
 
-到目前为止，我们已经能用 $V(s)$ 评估”一个状态好不好”，也知道了 DP、MC、TD 三种估计方法。但从这里开始，RL 的方法会分出**两条路线**：
+| 位置 | 含义   |
+| ---- | ------ |
+| $S$  | 起点   |
+| $M$  | 中间格 |
+| $G$  | 终点   |
 
-|          | 路线一：Value-Based              | 路线二：Policy-Based                              |
-| -------- | -------------------------------- | ------------------------------------------------- |
-| 核心思路 | 先学每个动作值多少分，再选最高分 | 跳过打分，直接学”看到什么做什么”                  |
-| 关键对象 | $Q(s,a)$ → $\arg\max_a Q$        | $\pi_\theta(a\mid s)$ → $\nabla_\theta J(\theta)$ |
-| 代表算法 | Q-Learning、DQN                  | REINFORCE、PPO、GRPO                              |
-| 对应章节 | **本节 + 第 4 章**               | 下一节 + 第 5 章                                  |
-
-两条路线不是对立的——后续的 Actor-Critic（第 6 章）会把它们合在一起。但在合体之前，先分别理解各自的逻辑会更清晰。
-
-本节走**路线一**：引入动作价值函数 $Q(s,a)$，说明它为什么能直接诱导动作选择，以及它在哪里会碰壁。
-
-上一节我们解决了”不知道环境模型时如何估计 $V(s)$”的问题。DP 精确但需要完美模型，MC 不需要模型但要跑完一整局，TD 走一步就更新、是实际应用的主力。三种方法共享同一个核心——贝尔曼方程——只是”怎么拿到未来信息”的方式不同。学完之后，我们终于能从数据中判断”这个局面好不好”了。
-
-但 $V(s)$ 有一个根本性的局限：**它评估的是”状态”，而不是”动作”。** 在 CartPole 里，$V(s)$ 能告诉你”杆子快倒了，这个局面不妙”，却不能告诉你”该往左推还是往右推”；在迷宫里，$V(s)$ 能告诉你”这个岔路口整体值 50 分”，却不能告诉你”该往上走还是往下走”。做决策需要的是一块带方向的路牌——不仅告诉你每条路通向哪里，还得直接标出”如果你选了这条路，预计能拿多少分”。这块路牌就是**动作价值函数 $Q(s,a)$**。
-
-$Q(s,a)$ 把问题从”这个位置值多少分”推进到”在这个位置做这个动作值多少分”。$V$-$Q$ 关系告诉我们，局面的价值其实是所有可选动作价值的概率加权平均；$Q^*$ 再告诉我们，如果每个动作都有了分数，直接选最高分就行。这正是后续 Q-Learning 和 DQN 的底层逻辑：先给每个动作贴上分数牌，再按分数选动作。
-
-**核心公式**
+走廊结构是
 
 $$
-Q^\pi(s,a) = \mathbb{E}_\pi[G_t\mid s_t=s,a_t=a] \quad \text{（动作价值函数定义：评估先做动作 }a\text{ 的回报）}
+S \;-\; M \;-\; G.
 $$
 
-> **动作价值函数 (Action-Value Function)：**
->
-> - $Q^\pi(s,a)$：动作价值（Action-Value），即在状态 $s$ 下**先强制执行动作 $a$**，之后一直按策略 $\pi$ 行动能拿到的平均总分。
-> - $s_t=s, a_t=a$：这是期望的已知条件，表示当前时刻 $t$ 必须在状态 $s$ 并且做动作 $a$。
+智能体每一步可以选择“向左”或“向右”。规则如下：
+
+| 情况        | 下一状态       | 奖励 |
+| ----------- | -------------- | ---- |
+| 从 $S$ 向右 | $M$            | $-1$ |
+| 从 $S$ 向左 | 留在 $S$，撞墙 | $-2$ |
+| 从 $M$ 向右 | $G$，结束      | $-1$ |
+| 从 $M$ 向左 | $S$            | $-1$ |
+| 到达 $G$ 后 | 结束           | $0$  |
+
+如果你站在 $M$，$V(M)$ 可以告诉你“中间格整体值多少”。但做决策时，我们更想直接比较两件事：向右值多少，向左值多少。$Q(s,a)$ 正是把这些动作分数摊开写出来。
+
+::: info 先记住 3.3 的结论
 
 $$
-V^\pi(s) = \sum_a \pi(a\mid s)Q^\pi(s,a) \quad \text{（V-Q 关系式：用动作价值求状态价值）}
+Q^\pi(s,a)=\mathbb{E}_\pi[G_t\mid S_t=s,A_t=a].
 $$
 
-> **V-Q 关系式 (V-Q Relationship)：**
->
-> - $V^\pi(s)$：状态 $s$ 的整体价值。
-> - $\pi(a\mid s)$：在状态 $s$ 选动作 $a$ 的概率。这个公式说明，整体局面的价值等于所有可选动作价值的概率加权平均。
+它表示：站在状态 $s$，第一步先做动作 $a$，之后继续按策略 $\pi$ 行动，平均能拿到多少长期回报。状态价值和动作价值的关系是：
 
 $$
-Q^*(s,a) = R(s,a)+\gamma\sum_{s'\in\mathcal{S}}P(s'\mid s,a)\max_{a'}Q^*(s',a') \quad \text{（Q 的贝尔曼最优方程：递归定义最优动作价值）}
+V^\pi(s)=\sum_a\pi(a\mid s)Q^\pi(s,a).
 $$
 
-> **Q 的贝尔曼最优方程 (Bellman Optimality Equation for Q)：**
->
-> - $Q^*(s,a)$：最优动作价值，即在所有可能策略中能拿到的最高分数。
-> - $\max_{a'}Q^*(s',a')$：假设到了下一个状态 $s'$ 后，我们能完美地选出那个最高分的动作 $a'$。
+也就是说，$V$ 把动作按策略概率平均起来，$Q$ 把每个动作单独摊开。本节不再重复推导定义，而是看：有了 $Q$ 之后，策略怎么从表里读出来。
 
-$$
-\pi^*(s) = \arg\max_a Q^*(s,a) \quad \text{（贪心最优策略：选择最高分动作）}
-$$
-
-> **贪心最优策略 (Greedy Optimal Policy)：**
->
-> - $\pi^*(s)$：最优策略，直接告诉你在这个状态下该选哪个动作。
-> - $\arg\max_a$：一个数学算子，意思是”去把那个能让后面式子取到最大值的 $a$ 给我找出来”。
-
-## 从 V 到 Q：为什么状态价值不够
-
-考虑上一节那个只有一条直路的 1×5 走廊寻宝游戏：
-
-<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin:16px 0;">
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:22px;font-weight:700;">S</div>
-    <span style="font-size:12px;color:#6366f1;font-weight:600;">-4</span>
-  </div>
-  <span style="color:#94a3b8;font-size:20px;">→</span>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;"></div>
-    <span style="font-size:12px;color:#94a3b8;font-weight:600;">-3</span>
-  </div>
-  <span style="color:#94a3b8;font-size:20px;">→</span>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;"></div>
-    <span style="font-size:12px;color:#94a3b8;font-weight:600;">-2</span>
-  </div>
-  <span style="color:#94a3b8;font-size:20px;">→</span>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;"></div>
-    <span style="font-size:12px;color:#94a3b8;font-weight:600;">-1</span>
-  </div>
-  <span style="color:#94a3b8;font-size:20px;">→</span>
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#fff;font-size:22px;font-weight:700;">🏆</div>
-    <span style="font-size:12px;color:#f59e0b;font-weight:600;">0</span>
-  </div>
-</div>
-
-在这个走廊里，每个格子你只能被迫做一个动作（往右走），所以知道 $V(s)$ 就足够了。但如果走廊有岔路呢？
-
-<div style="display:flex;align-items:center;justify-content:center;margin:20px 0;">
-  <!-- Start cell -->
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:22px;font-weight:700;">S</div>
-  <span style="color:#94a3b8;font-size:20px;margin:0 4px;">→</span>
-  <!-- Branch point -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#fef3c7;color:#d97706;font-size:20px;font-weight:700;">?</div>
-    <span style="font-size:11px;color:#d97706;font-weight:600;">岔路口</span>
-  </div>
-  <span style="color:#94a3b8;font-size:20px;margin:0 4px;">→</span>
-  <!-- Upper branch -->
-  <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
-    <div style="display:flex;align-items:center;gap:4px;">
-      <span style="color:#3b82f6;font-size:12px;font-weight:600;white-space:nowrap;">↑ 上方路线</span>
-      <div style="display:flex;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#dbeafe;color:#1d4ed8;font-size:13px;"></div>
-      <span style="color:#94a3b8;font-size:20px;">→</span>
-      <div style="display:flex;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#fff;font-size:22px;font-weight:700;">🏆</div>
-    </div>
-    <div style="display:flex;align-items:center;gap:4px;">
-      <span style="color:#94a3b8;font-size:12px;font-weight:600;white-space:nowrap;">↓ 下方路线</span>
-      <div style="display:flex;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;"></div>
-      <span style="color:#94a3b8;font-size:20px;">→</span>
-      <div style="display:flex;align-items:center;justify-content:center;height:72px;width:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;"></div>
-    </div>
-  </div>
-</div>
-
-假设你现在站在 `?` 处。$V(?)$ 会告诉你：“这个岔路口整体值个 50 分”。
-但这就尴尬了，作为一个需要做决定的智能体，你无法回答那个最关键的问题：**我到底是该往上走，还是往下走？**
-
-你需要的是一块更精细的“路牌”——它不仅告诉你每条路通向哪里，还得直接标出“如果你选了这条路，预计能拿多少分”。这块带方向的路牌，就是**动作价值函数 $Q(s,a)$**。
-
-## Q(s,a) 的定义：先做动作再评价
-
-$Q^\pi(s,a)$ 的定义是：在状态 $s$ 下**先强制执行动作 $a$**，然后从下一步开始，老老实实遵循策略 $\pi$ 行动，所能获得的期望累积回报：
-
-$$Q^\pi(s,a) = \mathbb{E}_\pi \left[ G_t \mid s_t = s, a_t = a \right]$$
-
-和 $V(s)$ 相比，$Q(s,a)$ 在条件里多加了一个 $a_t = a$。我们用迷宫来类比这俩的区别：
-
-- **$V(s)$**：站在这个岔路口，你闭着眼睛按现在的习惯走，整体胜率是多少？（它把所有可能走的路混在一起算平均）
-- **$Q(s, \text{向上})$**：如果你**现在立刻决定**向上走，并且之后按习惯走，胜率是多少？
-- **$Q(s, \text{向下})$**：如果你**现在立刻决定**向下走，并且之后按习惯走，胜率是多少？
-
-你看，只要你能把每个动作的 $Q$ 值算出来，做决定就变成了一件小学生都会的事——**比较大小，选 $Q$ 值最高的那个动作。**
-
-## 格子世界示例
-
-为了把 $Q(s,a)$ 的直觉变得可触摸，我们构造一个更具体的 3×3 格子世界：
-
-<div style="display:grid;grid-template-columns:repeat(3,72px);gap:4px;justify-content:center;margin:20px 0;">
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s0</div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s1</div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s2</div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s3</div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s4</div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s5</div>
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:14px;font-weight:700;line-height:1.3;">s6<br><span style="font-size:18px;">⭐</span></div>
-  <div style="display:flex;align-items:center;justify-content:center;height:72px;border-radius:10px;background:#f1f5f9;color:#94a3b8;font-size:13px;">s7</div>
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:72px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#fbbf24);color:#fff;font-size:14px;font-weight:700;line-height:1.3;">s8<br><span style="font-size:18px;">🏆</span></div>
-</div>
-
-规则很简单：
-
-- 从 ⭐（s6）出发，目标是到达 🏆（s8）
-- 每步可以往上、下、左、右走
-- 走出边界留在原地，扣 2 分
-- 每走一步扣 1 分（体力消耗）
-- 到达宝藏处游戏结束，奖励 0
-- 折扣因子 $\gamma = 1$（先不考虑折扣，简化计算）
-
-站在 s7（宝藏左边那格），所有动作的 $Q$ 值是多少？
-
-- **向右**：走到 s8（宝藏），扣 1 分，然后游戏结束。$Q(s7, \text{右}) = -1 + 0 = -1$
-- **向左**：回到 s6，扣 1 分。$Q(s7, \text{左}) = -1 + V(s6)$（还要继续走）
-- **向上**：走到 s4，扣 1 分。$Q(s7, \text{上}) = -1 + V(s4)$
-- **向下**：撞墙，留在 s7，扣 2 分。$Q(s7, \text{下}) = -2 + V(s7)$
-
-在 s7，向右的 $Q$ 值是 $-1$，一目了然——"走一步就到宝藏了，只扣 1 分"。其他方向都绕远了，$Q$ 值更低。**如果你知道每个格子的每个方向的 $Q$ 值，只需比较大小，就知道该往哪走。**
-
-## V 与 Q：整体价值与动作价值
-
-既然 $V(s)$ 衡量的是整体，$Q(s,a)$ 衡量的是局部（某条特定的路），它们之间肯定有个换算关系：
-
-$$V^\pi(s) = \sum_{a} \pi(a | s) \cdot Q^\pi(s, a)$$
-
-这个公式其实非常直白：**一个路口的整体价值 $V(s)$，等于所有分岔路价值 $Q(s,a)$ 的“概率加权平均”。**
-
-用我们上面的 1×3 走廊来验证一下。假设你现在站在 s1，你的习惯（策略）是“50% 概率向右走，50% 概率向左走”：
-
-- 查一查向右的牌子：$Q(s1, \text{右}) = -1$（走一步到终点，扣 1 分）
-- 查一查向左的牌子：$Q(s1, \text{左}) = -3$（走回起点，再走回来，还要继续走）
-- 算一算整体的平均分：$V(s1) = 0.5 \times (-1) + 0.5 \times (-3) = -2$
-
-验算无误。这说明了什么？$V(s)$ 本质上是在所有动作上“和稀泥”——好的坏的混在一起。而 $Q(s,a)$ 把每个动作的贡献单独拎了出来，清清楚楚地告诉你“做这个动作到底值多少”。正因如此，$Q(s,a)$ 携带了比 $V(s)$ 更细粒度的信息，天然适合做决策。
-
-## 从 Q 到策略：选择最高分动作
-
-既然 $Q(s,a)$ 已经把“在这个局面下做这个动作值多少分”标得清清楚楚了，那么什么是最优策略？
-
-简单粗暴：**选分数最高的那个。**
-
-$$\pi^*(s) = \arg\max_a \, Q^*(s, a)$$
-
-不需要复杂的逻辑推理，不需要写 if-else 规则树，比较数字大小就够了。
-
-回到刚刚的 3×3 格子世界。假设经过一番学习，我们已经知道了 s7 的这块“最优动作价值路牌” $Q^*$：
-
-| 动作 | 牌子上写的分数 $Q^*(s7, a)$ |
-| ---- | --------------------------- |
-| 向右 | $-1$                        |
-| 向左 | $-3$                        |
-| 向上 | $-3$                        |
-| 向下 | $-4$                        |
-
-看到这块牌子，连闭着眼睛都知道该怎么走——向右（-1 分是扣得最少的，也就是价值最大的）。
-
-这就是**路线一（Value-Based）** 的核心思路。你可以用一个生动的类比来记住它：
-
-> 想象你在走一个巨大的迷宫，每到一个岔路口，你都能看到路边立着一块牌子。
-> 牌子上写着：“往左走预计总共能拿 80 分，往右走预计总共能拿 30 分。”
-> 你当然毫不犹豫地选往左。
->
-> 这块“牌子”就是 $Q(s,a)$。它不直接命令你该走哪条路，它只是客观地告诉你每条路的预期回报，由你自己去选那个最高的。这就是所谓的“给动作打分，选最高分”。
-
-### Python 验证
-
-我们用一个简化的 1×3 直线走廊来验证 $Q$ 值的计算和 $\arg\max$ 决策：
-
-```python
-import numpy as np
-
-# 1×3 走廊：s0 -> s1 -> s2(宝藏)
-n_states = 3
-n_actions = 2  # 0=左, 1=右
-gamma = 1.0
-step_cost = -1
-
-# 转移：s2 是终点，到达后游戏结束
-def step(s, a):
-    if s == 2:  # 终点
-        return s, 0
-    if a == 1:  # 向右
-        s_next = min(s + 1, 2)
-    else:       # 向左
-        s_next = max(s - 1, 0)
-    reward = step_cost if s_next != s else -2  # 撞墙扣 2
-    return s_next, reward
-
-# 用贝尔曼最优方程迭代求解 Q*
-Q = np.zeros((n_states, n_actions))
-for _ in range(50):
-    Q_new = Q.copy()
-    for s in range(n_states):
-        for a in range(n_actions):
-            s_next, r = step(s, a)
-            Q_new[s, a] = r + gamma * np.max(Q[s_next])
-    Q = Q_new
-
-print("Q* 表格（行=状态, 列=动作[左, 右]）:")
-print(Q)
-print()
-
-# 在每个状态用 argmax 选最优动作
-for s in range(n_states):
-    best_a = np.argmax(Q[s])
-    direction = "右" if best_a == 1 else "左"
-    print(f"s{s}: Q*=[左={Q[s,0]:.1f}, 右={Q[s,1]:.1f}] → 选{direction}")
-```
-
-:::output
-Q\* 表格（行=状态, 列=动作[左, 右]）:
-[[-3.  -2.]
- [ -2.  -1.]
- [  0.   0.]]
-
-s0: Q*=[左=-3.0, 右=-2.0] → 选右
-s1: Q*=[左=-2.0, 右=-1.0] → 选右
-s2: Q\*=[左=0.0, 右=0.0] → 选右
 :::
 
-手动验证 s1：向右走到 s2（终点），扣 1 分，$Q^*(s1, \text{右}) = -1 + 0 = -1$；向左走到 s0，$Q^*(s0, \text{右}) = -2$，所以 $Q^*(s1, \text{左}) = -1 + (-2) = -3$。代码结果吻合。在每个状态，$\arg\max$ 都选了向右——走向宝藏的方向。
+## 用 Q 表示最优选择
 
-## Q 的贝尔曼方程
+到目前为止，$Q^\pi$ 仍然依赖某个给定策略 $\pi$。它回答的是：“如果第一步做 $a$，之后继续按 $\pi$ 行动，平均回报是多少？”
 
-和 $V(s)$ 一样，$Q(s,a)$ 也满足贝尔曼方程。先用格子世界建立直觉，再看公式。
+如果我们关心最优决策，就要把“之后按 $\pi$ 行动”改成“之后每一步都做最好的选择”。最优动作价值函数记作 $Q^*$：
 
-站在 s7，$Q(s7, \text{右})$ 是多少？你已经知道了：$-1$。它是怎么算出来的？
+$$
+Q^*(s,a)=\max_\pi Q^\pi(s,a).
+$$
 
-$$Q(s7, \text{右}) = \underbrace{-1}_{\text{这一步扣 1 分}} + \gamma \times \underbrace{V(s8)}_{= 0 \text{（宝藏处，游戏结束）}}$$
+它表示：在状态 $s$ 先做动作 $a$，然后从下一步开始尽可能做得最好，能得到的最大期望回报。
 
-站在 s4（s7 的上方），$Q(s4, \text{下})$ 是多少？
+对应的贝尔曼最优方程是
 
-$$Q(s4, \text{下}) = \underbrace{-1}_{\text{走到 s7}} + \gamma \times \underbrace{V(s7)}_{\text{s7 还要继续走}}$$
+$$
+Q^*(s,a)
+=
+\sum_{s'}P(s'\mid s,a)
+\left[
+R(s,a,s')
++
+\gamma\max_{a'}Q^*(s',a')
+\right].
+$$
 
-关键发现：**$Q(s,a)$ 的值 = 这一步的即时奖励 + 下一状态的价值**。和 $V(s)$ 的贝尔曼方程一样的递归结构，只不过第一步的动作被固定了。
+和期望方程相比，变化只发生在下一状态。原来那里是策略平均：
 
-### 期望方程
+$$
+\sum_{a'}\pi(a'\mid s')Q^\pi(s',a'),
+$$
 
-$$Q^\pi(s,a) = R(s,a) + \gamma \sum_{s' \in \mathcal{S}} P(s' | s, a) \sum_{a' \in \mathcal{A}} \pi(a' | s') \, Q^\pi(s', a')$$
+现在变成了选择最大动作价值：
 
-与 $V$ 的贝尔曼方程对比：$V$ 需要对所有动作取策略加权平均（外层 $\sum_a \pi(a|s)$），而 $Q$ 已经固定了第一步动作，所以直接用 $R(s,a)$ 开始，不需要对第一个动作求和。但在下一步 $s'$ 处，仍然需要对所有 $a'$ 取策略加权平均。
+$$
+\max_{a'}Q^*(s',a').
+$$
 
-### 最优方程
+这一步的含义是：如果已经在追求最优，那么到了下一状态 $s'$ 后，不再按某个固定策略随机选动作，而是直接选 $Q^*$ 最大的动作。
 
-贝尔曼最优方程把策略加权平均替换为 max：
+仍然用三格走廊手算一遍。令 $\gamma=1$，终点 $G$ 的价值为 0。
 
-$$Q^*(s,a) = R(s,a) + \gamma \sum_{s' \in \mathcal{S}} P(s' | s, a) \max_{a'} Q^*(s', a')$$
+在 $M$ 处，向右一步到终点：
 
-注意 $\max_{a'}$ 出现在 $Q$ 自身的更新中——这意味着只要知道了 $Q^*$，最优策略就直接确定了：
+$$
+Q^*(M,\text{右})=-1.
+$$
 
-$$\pi^*(s) = \arg\max_a Q^*(s, a)$$
+向左会回到 $S$，然后从 $S$ 开始继续做最优选择。后面我们会知道从 $S$ 最优地走到终点还要两步，总价值是 $-2$，所以
 
-不需要知道环境的转移概率 $P$。这就是 Q-Learning 的理论基础——通过学习 $Q^*$ 来隐式地找到最优策略。
+$$
+Q^*(M,\text{左})=-1+(-2)=-3.
+$$
 
-:::details 点击展开：用格子世界验证贝尔曼最优方程
-回到 1×3 走廊，从终点往回推 $Q^*$：
+在 $S$ 处，向右到 $M$：
 
-**s2（终点）**：游戏结束，任何动作的 $Q = 0$。
+$$
+Q^*(S,\text{右})
+=-1+\max_a Q^*(M,a)
+=-1+(-1)
+=-2.
+$$
 
-**s1**：
+向左撞墙并留在 $S$：
 
-$$Q^*(s1, \text{右}) = -1 + \gamma \cdot \max_a Q^*(s2, a) = -1 + 1 \times 0 = \mathbf{-1}$$
+$$
+Q^*(S,\text{左})
+=-2+\max_a Q^*(S,a)
+=-2+(-2)
+=-4.
+$$
 
-$$Q^*(s1, \text{左}) = -1 + \gamma \cdot \max_a Q^*(s0, a) = -1 + 1 \times (-2) = \mathbf{-3}$$
+于是最优动作价值表为
 
-向右明显更好，$\max_a Q^*(s1, a) = -1$。
+| 状态 | 动作 | $Q^*(s,a)$ | 解释                 |
+| ---- | ---- | ---------- | -------------------- |
+| $S$  | 向右 | $-2$       | 走两步到终点         |
+| $S$  | 向左 | $-4$       | 先撞墙，再重新走两步 |
+| $M$  | 向右 | $-1$       | 走一步到终点         |
+| $M$  | 向左 | $-3$       | 先回到起点，再走两步 |
 
-**s0**：
+这里的数都是负数，因为每走一步都在扣分。比较大小时，$-1$ 比 $-3$ 好，$-2$ 比 $-4$ 好。价值不是“绝对分数越大越开心”这么简单，而是由奖励定义决定的；在这个例子中，少扣分就是更高价值。
 
-$$Q^*(s0, \text{右}) = -1 + \gamma \cdot \max_a Q^*(s1, a) = -1 + 1 \times (-1) = \mathbf{-2}$$
+## 从 Q\* 到策略
 
-$$Q^*(s0, \text{左}) = -2 + \gamma \cdot \max_a Q^*(s0, a)$$
+有了 $Q^*$，决策就变得非常直接。最优策略可以写成
 
-向左撞墙留在 s0，形成自环方程——实际 $Q^*(s0, \text{左}) = \mathbf{-3}$。每个状态，贝尔曼最优方程通过 $\max_a$ 自动选出最好的下一步，递归地给出当前步骤的最优 $Q$ 值。
-:::
+$$
+\pi^*(s)=\arg\max_a Q^*(s,a).
+$$
 
-## 算法演进
+$\arg\max$ 的意思是：找到让 $Q^*(s,a)$ 最大的那个动作 $a$。
 
-沿着“学 Q $\rightarrow$ 挑出最大 Q $\rightarrow$ 得到最优策略”这条路，诞生了强化学习历史上最经典的一系列算法：
+在走廊中：
 
-| 算法        | 核心思路                                | 解决了什么问题                                       |
-| ----------- | --------------------------------------- | ---------------------------------------------------- |
-| Q-Learning  | 拿个表格，把所有 $(s, a)$ 的 Q 值记下来 | 最经典的入门方法，但只能处理格子迷宫这种小问题       |
-| DQN         | 把表格换成神经网络                      | 从“小表格”走向“看像素打游戏”，深度强化学习的开山鼻祖 |
-| Double DQN  | 修正 DQN 的“盲目乐观”                   | 解决 DQN 既当裁判又当运动员导致 Q 值偏高的问题       |
-| Dueling DQN | 分别给“整体局面”和“具体动作”打分        | 在那些“做什么动作都差不多”的状态下，学习效率更高     |
+$$
+\pi^*(S)=\text{向右},
+$$
 
-值得一提的是，这条路线有一个非常强大的武器：**离策略（Off-policy）学习**。
+因为
 
-你看，$Q^*$ 定义的是“最完美的打分表”。这就意味着，不管你现在是一个像没头苍蝇一样乱撞的菜鸟，还是一个按特定策略行事的普通玩家，你都可以把你试错的经历（状态、动作、拿到的奖励、下一个状态）记录在小本本上。然后，你可以对着这个小本本，去反复推敲那张“完美的打分表”该怎么写。
+$$
+Q^*(S,\text{右})=-2 > Q^*(S,\text{左})=-4.
+$$
 
-这就好比，就算是你瞎走出来的一段经验，你也可以把它存进一个**经验回放池（Replay Buffer）** 里，拿出来反复学习。这就是为什么 DQN 对数据的利用率非常高。作为对比，我们在下一节要学的路线二（比如 REINFORCE 算法），只能用当前的策略去跑数据，跑完一次就得扔掉（On-policy），非常费数据。
+同理，
 
-这条区别会在第 4 章和第 5 章的实战中给你留下深刻的印象。
+$$
+\pi^*(M)=\text{向右},
+$$
 
-## 本节总结
+因为
 
-本节的核心收获可以归纳为以下几点：
+$$
+Q^*(M,\text{右})=-1 > Q^*(M,\text{左})=-3.
+$$
 
-- **$Q(s,a)$ 比 $V(s)$ 多了一个维度——动作。** $V(s)$ 只会说"这个局面值多少分"，$Q(s,a)$ 会说"这个局面下做某个动作值多少分"。多出来的这一维信息，正是做决策所需要的。
-- **从 Q 到策略只需一步：argmax。** 知道了 $Q^*$，最优策略就是选 $Q$ 值最高的动作。不需要知道环境的转移概率 $P$，不需要复杂的推理——比较数字大小就够了。
-- **Q 的贝尔曼方程和 V 共享同样的递归结构。** 当前步骤的动作价值 = 这一步的即时奖励 + 接下来按最优策略行动的下一状态价值。区别只在于第一步的动作被固定了，后续步骤仍然取 $\max$。
-- **Off-policy 学习的基础。** 因为 $Q^*$ 描述的是“最优情况”下的价值，我们可以用任何策略（比如随机探索）去收集数据，同时利用这些数据来逼近 $Q^*$，这也是 Q-Learning 能使用经验回放池的原因。
+这就是 $Q$ 能直接支持决策的原因。$V(s)$ 只告诉我们“这个状态整体值多少”；$Q(s,a)$ 直接告诉我们“在这个状态下做这个动作值多少”。当每个动作都有分数时，策略可以从价值表中读出来。
 
-## 局限性与后续引申
+这条路线就是 value-based 方法的基本图景：先学习动作价值，再根据动作价值选动作。表格 Q-Learning 用一张表存储 $Q(s,a)$；DQN 则用神经网络近似 $Q(s,a)$，让它可以处理更大的状态空间。虽然实现会复杂很多，但核心仍然是这句话：
 
-路线一（Value-Based）的优势是**打分准确、样本效率高**（可以复用旧数据）。但这条路线有一个硬伤：**当动作空间变成连续的时（比如机器人各个关节的连续力矩，或自动驾驶的连续转向角度），$\arg\max$ 彻底失灵**——你无法给无穷多个动作逐一打分并挑出最大值。此外，它也**不擅长探索**（需要 $\epsilon$-贪婪等人工补丁来强制探索）。
+$$
+\text{给每个候选动作打分，然后选择分数最高的动作。}
+$$
 
-既然没法给每一个动作打分，那我们能不能换个思路，不给动作打分，而是直接学"遇到这个局面该做什么动作"？
+## 为什么还需要策略路线
 
-这就引出了我们的第二条路线：Policy-Based 方法。
+动作价值函数很有力量，但它也把一个前提放在了台面上：我们得能比较动作。
 
-← 上一节：[经典方法速览](./dp-mc-td) | 下一节：[路线二：J(θ)——直接优化策略](./policy-objective)
+在三格走廊里，动作只有“向左”和“向右”，比较两个数非常容易。在 CartPole 里，动作也只有“向左推”和“向右推”，$Q(s,a)$ 仍然很自然。在许多 Atari 游戏中，动作集合虽然更大，但依然是有限按钮集合，所以 DQN 这类方法可以发挥作用。
+
+可是一旦动作空间变成连续的，事情就不一样了。机械臂的动作可能是多个关节力矩组成的实数向量；自动驾驶的动作可能包含连续方向盘角度、油门和刹车；如果每个动作都是连续值，就不可能把所有动作逐个列出来，再计算
+
+$$
+\arg\max_a Q(s,a).
+$$
+
+即使动作是离散的，动作数量也可能非常大。语言模型生成下一个 token 时，候选 token 可能有几万；如果考虑整段回答，动作序列空间更是巨大。此时，“先给所有动作打分，再选最大值”会变得很笨重。
+
+还有一个更深的问题：$Q$ 本身不是策略。它是一张打分表，策略是从这张表里通过 $\arg\max$ 间接读出来的。为了探索，我们还常常要在贪心选择外面加上 $\epsilon$-greedy、噪声或其他机制。也就是说，value-based 路线把“评价动作”和“产生行为”分成了两步。
+
+换个角度，如果我们最终想要的是一个会行动的智能体，能不能直接学习一套行为规则？也就是直接表示
+
+$$
+\pi_\theta(a\mid s),
+$$
+
+并调整参数 $\theta$，让这套策略的平均回报变高？
+
+这就是下一节要进入的 policy-based 路线。它不再把 $Q(s,a)$ 当作唯一主角，而是把策略本身写成可优化对象。
+
+## 小结
+
+本节不再重复定义 $Q$，而是把 3.3 和 3.4 的结论接到决策上。
+
+1. 如果价值表存的是 $Q(s,a)$，策略就可以直接比较动作。
+2. $Q^*$ 表示“先做动作 $a$，之后都尽可能做得最好”的长期回报。
+3. 一旦得到 $Q^*$，最优策略可以直接由
+   $$
+   \pi^*(s)=\arg\max_a Q^*(s,a)
+   $$
+   给出。
+4. 这就是 Q-Learning 和 DQN 的基本路线：学习动作价值，再按动作价值选动作。
+5. 但当动作空间巨大或连续时，显式比较所有动作会变困难。这自然引出直接优化策略的路线。
+
+上一节：[DP、MC 与 TD](./dp-mc-td) | 下一节：[从价值到策略](./policy-objective)
+
+## 参考文献
+
+[^1]: Sutton, R. S., & Barto, A. G. (2018). _Reinforcement Learning: An Introduction_ (2nd ed.). MIT Press. 第 3 章介绍状态价值、动作价值和贝尔曼方程，第 6 章介绍 Q-Learning。
+
+[^2]: Watkins, C. J. C. H., & Dayan, P. (1992). Q-learning. _Machine Learning_, 8, 279-292.
