@@ -155,7 +155,7 @@ trainer = DPOTrainer(
     model=model,
     args=training_args,
     train_dataset=train_dataset,
-    processing_class=tokenizer,  # 当前 TRL 使用 processing_class 传入 tokenizer/processor
+    processing_class=tokenizer,  # TRL 0.24 使用 processing_class 传入 tokenizer/processor
 )
 
 # ==========================================

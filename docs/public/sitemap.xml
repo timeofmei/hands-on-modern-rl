@@ -308,7 +308,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter02_dpo/intro/</loc>
-    <lastmod>2026-05-08T05:36:50.478Z</lastmod>
+    <lastmod>2026-05-08T05:47:55.389Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -320,7 +320,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter02_dpo/principles/</loc>
-    <lastmod>2026-05-08T05:36:50.524Z</lastmod>
+    <lastmod>2026-05-08T05:47:55.439Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -338,7 +338,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/dp-mc-td/</loc>
-    <lastmod>2026-05-08T04:27:27.368Z</lastmod>
+    <lastmod>2026-05-08T05:48:16.443Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -788,7 +788,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/preface/env-setup/</loc>
-    <lastmod>2026-05-08T05:36:36.670Z</lastmod>
+    <lastmod>2026-05-08T05:48:06.217Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>

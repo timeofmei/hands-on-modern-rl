@@ -1,5 +1,5 @@
 # 第11章：VLM 强化学习实验依赖
-transformers>=5.5.4,<6
+transformers==4.57.3
 torch>=2.0.0
 Pillow>=10.0.0
 matplotlib>=3.7.0
