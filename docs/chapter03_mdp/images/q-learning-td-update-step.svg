@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="360" viewBox="0 0 940 360" role="img" aria-labelledby="title desc">
+  <title id="title">Q-Learning 单步更新示意图</title>
+  <desc id="desc">智能体从 (0,0) 向右走到 (0,1)，得到奖励 -1。旧 Q 值为 0，下一状态最大 Q 值为 0，TD Target 为 -1，TD Error 为 -1，学习率为 0.1 时新 Q 值为 -0.1。</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.13"/>
+    </filter>
+    <linearGradient id="start" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="940" height="360" rx="18" fill="#f8fafc"/>
+  <text x="40" y="44" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="24" font-weight="700" fill="#0f172a">一次经验如何改动 Q 表</text>
+  <text x="40" y="74" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="15" fill="#475569">从 (0,0) 向右走到 (0,1)：旧预测是 0，现实告诉我们这一步至少要扣 1 分。</text>
+
+  <g transform="translate(58 132)" filter="url(#shadow)" font-family="Arial, 'Noto Sans SC', sans-serif">
+    <rect x="-18" y="-18" width="316" height="142" rx="16" fill="#ffffff"/>
+    <rect x="0" y="0" width="104" height="104" rx="10" fill="url(#start)"/>
+    <text x="52" y="40" text-anchor="middle" font-size="18" font-weight="700" fill="#ffffff">(0,0)</text>
+    <text x="52" y="70" text-anchor="middle" font-size="15" fill="#eff6ff">Q(右)=0</text>
+
+    <text x="143" y="56" text-anchor="middle" font-size="34" font-weight="700" fill="#64748b">→</text>
+    <text x="143" y="88" text-anchor="middle" font-size="14" font-weight="700" fill="#ef4444">r=-1</text>
+
+    <rect x="184" y="0" width="104" height="104" rx="10" fill="#dbeafe" stroke="#93c5fd" stroke-width="2"/>
+    <text x="236" y="40" text-anchor="middle" font-size="18" font-weight="700" fill="#1d4ed8">(0,1)</text>
+    <text x="236" y="70" text-anchor="middle" font-size="14" fill="#1e40af">max Q=0</text>
+  </g>
+
+  <g transform="translate(410 122)" font-family="Arial, 'Noto Sans SC', sans-serif">
+    <rect x="0" y="0" width="470" height="178" rx="16" fill="#ffffff" stroke="#e2e8f0" filter="url(#shadow)"/>
+    <text x="28" y="34" font-size="17" font-weight="700" fill="#0f172a">把一次经验写成 TD 更新</text>
+    <text x="28" y="70" font-size="15" fill="#334155">TD Target = r + γ max Q(s′, a′)</text>
+    <text x="28" y="100" font-size="15" fill="#334155">= -1 + 0.9 × 0 = -1</text>
+    <text x="28" y="130" font-size="15" fill="#334155">TD Error = Target - Q(s,a) = -1 - 0 = -1</text>
+    <text x="28" y="160" font-size="15" fill="#334155">新 Q = 0 + 0.1 × (-1) = -0.1</text>
+  </g>
+</svg>

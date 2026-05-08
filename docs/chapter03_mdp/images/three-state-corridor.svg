@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="250" viewBox="0 0 820 250" role="img" aria-labelledby="title desc">
+  <title id="title">三格走廊 MDP</title>
+  <desc id="desc">从状态 S 右走到 M，再右走到终点 G。每一步奖励为 -1，终点奖励为 0。</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-25%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.14"/>
+    </filter>
+    <linearGradient id="start" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+    <linearGradient id="goal" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+  </defs>
+  <rect width="820" height="250" rx="16" fill="#f8fafc"/>
+  <text x="36" y="42" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="22" font-weight="700" fill="#0f172a">三格走廊：一个最小的 MDP</text>
+  <text x="36" y="72" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="15" fill="#475569">每一步奖励为 -1；到达终点 G 后结束，终点价值为 0。</text>
+
+  <g transform="translate(72 112)" filter="url(#shadow)">
+    <g>
+      <rect x="0" y="0" width="132" height="74" rx="8" fill="url(#start)"/>
+      <text x="66" y="30" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="18" font-weight="700" fill="#ffffff">S</text>
+      <text x="66" y="56" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" fill="#eff6ff">起点</text>
+    </g>
+    <g transform="translate(176 0)">
+      <text x="36" y="30" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="34" font-weight="700" fill="#94a3b8">→</text>
+      <text x="36" y="57" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" font-weight="700" fill="#475569">右走 / -1</text>
+    </g>
+    <g transform="translate(268 0)">
+      <rect x="0" y="0" width="132" height="74" rx="8" fill="#e0f2fe" stroke="#bae6fd"/>
+      <text x="66" y="30" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="18" font-weight="700" fill="#075985">M</text>
+      <text x="66" y="56" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" fill="#0369a1">中间格</text>
+    </g>
+    <g transform="translate(444 0)">
+      <text x="36" y="30" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="34" font-weight="700" fill="#94a3b8">→</text>
+      <text x="36" y="57" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" font-weight="700" fill="#475569">右走 / -1</text>
+    </g>
+    <g transform="translate(536 0)">
+      <rect x="0" y="0" width="132" height="74" rx="8" fill="url(#goal)"/>
+      <text x="66" y="30" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="18" font-weight="700" fill="#ffffff">G</text>
+      <text x="66" y="56" text-anchor="middle" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" fill="#fff7ed">终点</text>
+    </g>
+  </g>
+
+  <g transform="translate(110 220)">
+    <text x="0" y="0" font-family="Arial, 'Noto Sans SC', sans-serif" font-size="14" fill="#334155">环境规则表给出一步转移和即时奖励；价值表要估计从每个状态出发的长期回报。</text>
+  </g>
+</svg>
