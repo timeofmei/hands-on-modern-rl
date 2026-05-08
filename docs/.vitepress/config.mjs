@@ -561,11 +561,11 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '1.1 状态、动作、奖励与策略',
+              text: '1.1 基本概念',
               link: '/chapter01_cartpole/principles'
             },
             {
-              text: '1.2 奖励、熵、Value Loss 与 KL',
+              text: '1.2 训练指标',
               link: '/chapter01_cartpole/metrics'
             }
           ]
@@ -576,11 +576,11 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '2.1 Post-Training 流水线与 DPO 推导',
+              text: '2.1 DPO 推导',
               link: '/chapter02_dpo/principles'
             },
             {
-              text: '2.2 Loss、Reward Margin 与 Accuracy',
+              text: '2.2 训练指标',
               link: '/chapter02_dpo/metrics'
             }
           ]
@@ -597,33 +597,33 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '3.1 两台老虎机：RL 的最小问题',
+              text: '3.1 两台老虎机问题',
               link: '/chapter03_mdp/bandit'
             },
-            { text: '3.2 MDP：描述序列决策问题', link: '/chapter03_mdp/mdp' },
+            { text: '3.2 马尔可夫决策过程', link: '/chapter03_mdp/mdp' },
             {
-              text: '3.3 V(s)：价值函数与贝尔曼方程',
+              text: '3.3 价值函数与贝尔曼方程',
               link: '/chapter03_mdp/value-bellman'
             },
             {
-              text: '3.4 DP、MC、TD：三种价值估计方法',
+              text: '3.4 DP、MC 与 TD',
               link: '/chapter03_mdp/dp-mc-td'
             },
-            { text: '3.5 Q(s,a)：给动作打分', link: '/chapter03_mdp/value-q' },
+            { text: '3.5 动作价值函数', link: '/chapter03_mdp/value-q' },
             {
-              text: '3.6 J(θ)：直接优化策略',
+              text: '3.6 从价值到策略',
               link: '/chapter03_mdp/policy-objective'
             },
             {
-              text: '3.7 数据来源：On-policy 与 Off-policy',
+              text: '3.7 数据从哪里来',
               link: '/chapter03_mdp/algorithm-taxonomy'
             },
             {
-              text: '3.8 奖励函数：优化目标从哪里来',
+              text: '3.8 奖励函数设计',
               link: '/chapter03_mdp/reward-design'
             },
             {
-              text: '3.9 本章总结：MDP、价值与策略',
+              text: '3.9 本章总结',
               link: '/chapter03_mdp/panorama'
             }
           ]
@@ -634,31 +634,31 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '4.1 动手：Q-Learning 与 GridWorld',
+              text: '4.1 GridWorld',
               link: '/chapter04_dqn/q-learning'
             },
             {
-              text: '4.2 为什么需要 DQN',
+              text: '4.2 从 Q 到 DQN',
               link: '/chapter04_dqn/from-q-to-dqn'
             },
             {
-              text: '4.3 Replay、Target 与 CNN',
+              text: '4.3 DQN 的三个组件',
               link: '/chapter04_dqn/dqn-components'
             },
             {
-              text: '4.4 训练过程分析',
+              text: '4.4 训练过程',
               link: '/chapter04_dqn/training-analysis'
             },
             {
-              text: '4.5 Mountain Car 与稀疏奖励',
+              text: '4.5 稀疏奖励',
               link: '/chapter04_dqn/mountain-car'
             },
             {
-              text: '4.6 Double、Dueling 与 Rainbow',
+              text: '4.6 DQN 家族',
               link: '/chapter04_dqn/dqn-family'
             },
             {
-              text: '4.7 项目：DQN 实战与视觉游戏',
+              text: '4.7 视觉游戏项目',
               link: '/chapter04_dqn/visual-game-projects'
             }
           ]
@@ -669,15 +669,15 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '5.1 动手：摇骰子赌博机',
+              text: '5.1 摇骰子游戏',
               link: '/chapter05_policy_gradient/dice-game'
             },
             {
-              text: '5.2 策略梯度与 REINFORCE',
+              text: '5.2 策略梯度',
               link: '/chapter05_policy_gradient/policy-gradient'
             },
             {
-              text: '5.3 动手：Baseline 降方差',
+              text: '5.3 Baseline',
               link: '/chapter05_policy_gradient/baseline-experiment'
             }
           ]
@@ -692,7 +692,7 @@ const zhSidebar = {
               link: '/chapter06_actor_critic/advantage-function'
             },
             {
-              text: '6.2 TD 误差训练 Critic',
+              text: '6.2 训练 Critic',
               link: '/chapter06_actor_critic/critic-training'
             },
             {
@@ -700,7 +700,7 @@ const zhSidebar = {
               link: '/chapter06_actor_critic/actor-critic'
             },
             {
-              text: '6.4 项目：AlphaGo 简单复现',
+              text: '6.4 AlphaGo 小项目',
               link: '/chapter06_actor_critic/alphago'
             }
           ]
@@ -711,11 +711,11 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '7.1 动手：PPO 训练 LunarLander',
+              text: '7.1 训练 LunarLander',
               link: '/chapter07_ppo/ppo-lunar-lander'
             },
             {
-              text: '7.2 PPO 数学推导',
+              text: '7.2 PPO 推导',
               link: '/chapter07_ppo/ppo-math'
             },
             {
@@ -740,35 +740,35 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '8.1 为什么 base model 还不是 assistant',
+              text: '8.1 从模型到助手',
               link: '/chapter08_rlhf/base-model-to-assistant'
             },
             {
-              text: '8.2 标准 RLHF 流水线',
+              text: '8.2 RLHF 流水线',
               link: '/chapter08_rlhf/standard-rlhf-pipeline'
             },
             {
-              text: '8.3 SFT：教模型按指令回答',
+              text: '8.3 指令微调',
               link: '/chapter08_rlhf/imitation-learning-pipeline'
             },
             {
-              text: '8.4 Reward Model：教一个裁判',
+              text: '8.4 奖励模型',
               link: '/chapter08_rlhf/reward-function-design'
             },
             {
-              text: '8.5 PPO-RLHF：按奖励练习',
+              text: '8.5 PPO 微调',
               link: '/chapter08_rlhf/ppo-rlhf-loop'
             },
             {
-              text: '8.6 评估：RLHF 到底有没有变好',
+              text: '8.6 评估效果',
               link: '/chapter08_rlhf/evaluation'
             },
             {
-              text: '8.7 从小参数到大参数',
+              text: '8.7 扩展到大模型',
               link: '/chapter08_rlhf/scaling-to-large-models'
             },
             {
-              text: '8.8 扩展实战：Reward Hacking 与数据飞轮',
+              text: '8.8 奖励黑客',
               link: '/chapter08_rlhf/extended-practice'
             }
           ]
@@ -779,31 +779,31 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '9.1 DPO、IPO 与 KTO',
+              text: '9.1 偏好优化方法',
               link: '/chapter09_alignment/dpo-theory-and-family'
             },
             {
-              text: '9.2 动手：DPO 对齐实验',
+              text: '9.2 DPO 实验',
               link: '/chapter09_alignment/dpo-hands-on'
             },
             {
-              text: '9.3 GRPO 实践与机制',
+              text: '9.3 GRPO',
               link: '/chapter09_grpo_rlvr/grpo-practice-and-mechanism'
             },
             {
-              text: '9.4 DeepSeek-R1 与 DAPO',
+              text: '9.4 R1 与 DAPO',
               link: '/chapter09_grpo_rlvr/deepseek-dapo'
             },
             {
-              text: '9.5 RLVR：可验证奖励',
+              text: '9.5 可验证奖励',
               link: '/chapter09_grpo_rlvr/rlvr'
             },
             {
-              text: '9.6 On-Policy Distillation',
+              text: '9.6 策略蒸馏',
               link: '/chapter09_grpo_rlvr/on-policy-distillation'
             },
             {
-              text: '9.7 工业界后训练实践全景',
+              text: '9.7 后训练实践',
               link: '/chapter09_alignment/industrial-post-training'
             }
           ]
@@ -814,23 +814,23 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '10.1 多轮交互与信用分配（含 ORM vs PRM 实验）',
+              text: '10.1 多轮交互',
               link: '/chapter10_agentic_rl/multi-turn-rl'
             },
             {
-              text: '10.2 工具调用、轨迹合成与 Agentic 工程',
+              text: '10.2 工具调用',
               link: '/chapter10_agentic_rl/tool-use-and-trajectory'
             },
             {
-              text: '10.3 工业实践、评测与 Badcase',
+              text: '10.3 评测与案例',
               link: '/chapter10_agentic_rl/industrial-evaluation'
             },
             {
-              text: '10.4 项目一：多工具 Code Agent',
+              text: '10.4 Code Agent',
               link: '/chapter10_agentic_rl/multi-tool-code-agent'
             },
             {
-              text: '10.5 项目二：Deep Research Agent',
+              text: '10.5 Deep Research',
               link: '/chapter10_agentic_rl/deep-research-agent'
             },
             {
@@ -851,19 +851,19 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '11.1 动手：GRPO 训练 VLM',
+              text: '11.1 训练 VLM',
               link: '/chapter11_vlm_rl/vlm-grpo-hands-on'
             },
             {
-              text: '11.2 视觉奖励与幻觉',
+              text: '11.2 视觉奖励',
               link: '/chapter11_vlm_rl/vlm-challenges'
             },
             {
-              text: '11.3 Open-R1、R1-V 与 VLM-R1',
+              text: '11.3 VLM 推理框架',
               link: '/chapter11_vlm_rl/vlm-frameworks'
             },
             {
-              text: '11.4 视觉生成 RL',
+              text: '11.4 视觉生成',
               link: '/chapter11_vlm_rl/visual-generation-rl'
             }
           ]
@@ -878,15 +878,15 @@ const zhSidebar = {
               link: '/chapter12_future_trends/embodied-intelligence/'
             },
             {
-              text: '12.2 Model-Based RL',
+              text: '12.2 模型式强化学习',
               link: '/chapter12_future_trends/embodied-intelligence/model-based-rl/'
             },
             {
-              text: '12.3 Self-Play 与自进化',
+              text: '12.3 自我博弈',
               link: '/chapter12_future_trends/self-play-outlook/'
             },
             {
-              text: '12.4 LLM 多智能体 RL',
+              text: '12.4 多智能体',
               link: '/chapter12_future_trends/llm-multi-agent-rl/'
             },
             {
@@ -894,7 +894,7 @@ const zhSidebar = {
               link: '/chapter12_future_trends/offline-rl/'
             },
             {
-              text: '12.6 RL Scaling 展望',
+              text: '12.6 规模化趋势',
               link: '/chapter12_future_trends/rl-scaling-outlook'
             }
           ]
@@ -919,11 +919,11 @@ const zhSidebar = {
               link: '/appendix_industrial_training/rl-infrastructure'
             },
             {
-              text: 'B.2 Agent 沙箱与工具调度',
+              text: 'B.2 Agent 沙箱',
               link: '/appendix_industrial_training/agentic-rl-infra'
             },
             {
-              text: 'B.3 RL 与 Agent Benchmark',
+              text: 'B.3 评测基准',
               link: '/appendix_industrial_training/evaluation-badcase'
             },
             {
@@ -942,31 +942,31 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: 'C.1 SFT Loss 与 KL 散度',
+              text: 'C.1 SFT 与 KL',
               link: '/appendix_code_cheatsheet/sft-kl'
             },
             {
-              text: 'C.2 PPO 策略损失与 GAE',
+              text: 'C.2 PPO 与 GAE',
               link: '/appendix_code_cheatsheet/ppo-gae'
             },
             {
-              text: 'C.3 DPO 及其变体',
+              text: 'C.3 DPO 家族',
               link: '/appendix_code_cheatsheet/dpo-family'
             },
             {
-              text: 'C.4 GRPO 与 Reward Model',
+              text: 'C.4 GRPO 与奖励模型',
               link: '/appendix_code_cheatsheet/grpo-rlvr'
             },
             {
-              text: 'C.5 Softmax 与 Cross-Entropy',
+              text: 'C.5 Softmax 与交叉熵',
               link: '/appendix_code_cheatsheet/softmax-ce'
             },
             {
-              text: 'C.6 Top-k / Top-p Sampling',
+              text: 'C.6 采样方法',
               link: '/appendix_code_cheatsheet/top-k-top-p'
             },
             {
-              text: 'C.7 Attention / MHA / GQA',
+              text: 'C.7 注意力机制',
               link: '/appendix_code_cheatsheet/attention-mha'
             },
             {
