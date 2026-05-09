@@ -11,7 +11,7 @@
 **核心公式**
 
 $$
-\mathcal{L}(\theta) = \mathbb{E}\left[\left( r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right)^2\right]
+\mathcal{L}(\theta) = \mathbb{E}\left[\left( r + \gamma (1 - d) \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right)^2\right]
 $$
 
 > **深度 Q 网络损失函数（MSE TD Error）：**
@@ -19,7 +19,8 @@ $$
 > - $\theta$：Q 网络的参数——正在被训练的"学生"。
 > - $\theta^-$：目标网络的参数——一个慢更新的副本，专门用来生成"标准答案"。
 > - $Q(s, a; \theta)$：Q 网络对当前状态-动作对的打分，即"学生的回答"。
-> - $r + \gamma \max_{a'} Q(s', a'; \theta^-)$：TD Target，即时奖励加上目标网络给出的打折未来最高分，即"标准答案"。
+> - $d$：终止标记。若 episode 真正终止，$d=1$，没有下一状态价值；否则 $d=0$。
+> - $r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$：TD Target，即时奖励加上目标网络给出的打折未来最高分，即"标准答案"。
 > - 外层 $\mathbb{E}$：对所有可能的转移 $(s, a, r, s')$ 取期望，实践中从经验回放池随机采样来近似。
 
 **为什么需要这些公式**
@@ -63,34 +64,35 @@ class QNetwork(nn.Module):
 
 Q 网络的训练目标是让网络输出的 Q 值尽可能接近"真实的" Q 值。但我们不知道真实的 Q 值是多少——如果能查表知道，就不需要神经网络了。所以我们用和 Q-Learning 一样的方式构造训练目标：
 
-$$\text{TD Target} = r + \gamma \max_{a'} Q(s', a')$$
+$$\text{TD Target} = r + \gamma (1-d) \max_{a'} Q(s', a')$$
 
 然后最小化网络输出和 TD Target 之间的均方误差：
 
-$$\mathcal{L}(\theta) = \mathbb{E}\left[\left( r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right)^2\right]$$
+$$\mathcal{L}(\theta) = \mathbb{E}\left[\left( r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta) \right)^2\right]$$
 
 这个公式看起来很复杂，让我们先理清里面每个符号的"角色"：
 
-| 符号                                       | 含义（直观理解）                                 | 角色                         |
-| ------------------------------------------ | ------------------------------------------------ | ---------------------------- |
-| $\theta$                                   | Q-Network 的参数（正在被训练的那个网络）         | 学生——正在考试的人           |
-| $\theta^-$                                 | 目标网络的参数（一个慢更新的副本，稍后会解释）   | 标准答案——阅卷老师手里的参考 |
-| $Q(s, a; \theta)$                          | 学生当前的回答："我觉得这步值 $X$ 分"            | 网络的预测                   |
-| $r$                                        | 这一步实际拿到的即时奖励                         | 眼前落袋为安的分数           |
-| $\gamma \max_{a'} Q(s', a'; \theta^-)$     | 从新局面出发，目标网络给出的最高未来分，再打个折 | "未来最多还能拿多少"         |
-| $r + \gamma \max_{a'} Q(s', a'; \theta^-)$ | TD Target——"这件事应该值多少分"                  | 标准答案                     |
+| 符号                                             | 含义（直观理解）                                 | 角色                         |
+| ------------------------------------------------ | ------------------------------------------------ | ---------------------------- |
+| $\theta$                                         | Q-Network 的参数（正在被训练的那个网络）         | 学生——正在考试的人           |
+| $\theta^-$                                       | 目标网络的参数（一个慢更新的副本，稍后会解释）   | 标准答案——阅卷老师手里的参考 |
+| $Q(s, a; \theta)$                                | 学生当前的回答："我觉得这步值 $X$ 分"            | 网络的预测                   |
+| $r$                                              | 这一步实际拿到的即时奖励                         | 眼前落袋为安的分数           |
+| $d$                                              | 是否真正终止                                     | 终止时切断未来价值           |
+| $\gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$     | 从新局面出发，目标网络给出的最高未来分，再打个折 | "未来最多还能拿多少"         |
+| $r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$ | TD Target——"这件事应该值多少分"                  | 标准答案                     |
 
 现在让我们一步步拼出这个损失函数：
 
 **第一块积木：TD Target——标准答案**
 
-$$y = r + \gamma \max_{a'} Q(s', a'; \theta^-)$$
+$$y = r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$$
 
-TD Target 就是"即时奖励 + 打了折的未来最高分"。注意这里的 $Q$ 使用的是目标网络的参数 $\theta^-$，而不是正在被训练的 $\theta$。为什么要这样？因为标准答案不能跟着学生一起改——如果目标也在动，学生永远追不上。这个思想在下一节"目标网络"中会详细展开。
+TD Target 就是"即时奖励 + 打了折的未来最高分"。如果这一步已经到达真正的终止状态，$d=1$，未来项被清零，目标就只剩即时奖励 $r$。注意这里的 $Q$ 使用的是目标网络的参数 $\theta^-$，而不是正在被训练的 $\theta$。为什么要这样？因为标准答案不能跟着学生一起改——如果目标也在动，学生永远追不上。这个思想在下一节"目标网络"中会详细展开。
 
 **第二块积木：TD Error——预测和标准答案差了多少**
 
-$$\delta = y - Q(s, a; \theta) = r + \gamma \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)$$
+$$\delta = y - Q(s, a; \theta) = r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-) - Q(s, a; \theta)$$
 
 TD Error 就是"标准答案减去学生的回答"。在表格方法中，我们直接把 Q 值往 TD Target 的方向挪 $\alpha \cdot \delta$。但在神经网络中，我们不能直接改某个 Q 值——只能通过修改参数 $\theta$ 间接影响所有 Q 值。
 
@@ -167,7 +169,7 @@ if step % target_update == 0:
 ```python
 # 用目标网络计算 TD Target（稳定的靶子）
 with torch.no_grad():
-    td_target = reward + gamma * target_net(next_state).max()
+    td_target = reward + gamma * target_net(next_state).max() * (1 - done)
 ```
 
 这样一来，在两次参数复制之间，TD Target 是固定的——靶子不会乱动了。Q-Network 可以安心地向一个稳定的目标学习，而不是追一个不断移动的靶子。每隔固定步数更新一次目标网络，相当于让靶子每隔一段时间挪到一个新的位置，给 Q-Network 一个更准确的追逐目标。
@@ -182,7 +184,7 @@ flowchart TD
         A["智能体与环境交互"] --> B["经验 (s,a,r,s') 存入回放池"]
         B --> C["从回放池随机采样一批"]
         C --> D["Q-Network 计算 Q(s,a; θ)"]
-        C --> E["Target-Net 计算 r + γ max Q(s',a'; θ⁻)"]
+        C --> E["Target-Net 计算 r + γ(1-d) max Q(s',a'; θ⁻)"]
         D --> F["计算 Loss = MSE(TD Target - Q)"]
         E --> F
         F --> G["梯度下降更新 Q-Network 参数 θ"]
@@ -211,7 +213,7 @@ flowchart TD
      - 执行动作 $a$，观察奖励 $r$ 和下一状态 $s'$
      - 将 $(s, a, r, s', \text{done})$ 存入经验回放池
      - 从回放池随机采样一批经验
-     - 计算 TD Target：$y = r + \gamma \max_{a'} Q(s', a'; \theta^-)$
+     - 计算 TD Target：$y = r + \gamma (1-d) \max_{a'} Q(s', a'; \theta^-)$
      - 计算 Loss：$\mathcal{L} = (y - Q(s, a; \theta))^2$
      - 梯度下降更新 $\theta$
      - 每隔 $C$ 步：$\theta^- \leftarrow \theta$
