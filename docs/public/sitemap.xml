@@ -338,7 +338,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/dp-mc-td/</loc>
-    <lastmod>2026-05-08T09:29:43.993Z</lastmod>
+    <lastmod>2026-05-09T03:22:35.690Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -374,13 +374,13 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/value-bellman/</loc>
-    <lastmod>2026-05-08T08:38:33.462Z</lastmod>
+    <lastmod>2026-05-09T06:06:21.467Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/value-q/</loc>
-    <lastmod>2026-05-08T09:34:37.841Z</lastmod>
+    <lastmod>2026-05-09T02:49:42.239Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -404,7 +404,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/from-q-to-dqn/</loc>
-    <lastmod>2026-05-08T09:23:34.157Z</lastmod>
+    <lastmod>2026-05-09T06:04:11.228Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
