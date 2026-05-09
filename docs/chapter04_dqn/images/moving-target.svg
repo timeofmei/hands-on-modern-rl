@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150" width="320" height="150">
+  <defs>
+    <marker id="arr" markerWidth="6" markerHeight="4" refX="6" refY="2" orient="auto">
+      <path d="M0,0 L6,2 L0,4 Z" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- ===== TOP: Tabular Q-table ===== -->
+  <!-- Before -->
+  <rect x="5" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="30" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="55" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="80" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
+  <rect x="5" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="30" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="55" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="80" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+
+  <!-- Arrow -->
+  <line x1="110" y1="29" x2="128" y2="29" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- After: only Q(s1,a2) changed -->
+  <rect x="138" y="5" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="163" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="188" y="5" width="50" height="24" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
+  <text x="213" y="20" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">5.46</text>
+  <rect x="138" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="163" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="188" y="29" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="213" y="44" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+
+  <!-- Target highlight: 8.0 unchanged -->
+  <rect x="186" y="27" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+
+  <!-- ===== DIVIDER ===== -->
+  <line x1="0" y1="66" x2="320" y2="66" stroke="#ddd" stroke-width="1"/>
+
+  <!-- ===== BOTTOM: Neural Network ===== -->
+  <!-- Before -->
+  <rect x="5" y="78" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="30" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">2.0</text>
+  <rect x="55" y="78" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="80" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">5.0</text>
+  <rect x="5" y="102" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="30" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">3.0</text>
+  <rect x="55" y="102" width="50" height="24" fill="#e3f2fd" stroke="#1976d2" stroke-width="1.5" rx="3"/>
+  <text x="80" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#1565c0">8.0</text>
+
+  <!-- Target highlight on 8.0 -->
+  <rect x="53" y="100" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+
+  <!-- Arrow -->
+  <line x1="110" y1="102" x2="128" y2="102" stroke="#555" stroke-width="1.5" marker-end="url(#arr)"/>
+
+  <!-- After: ALL values changed -->
+  <rect x="138" y="78" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
+  <text x="163" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.3</text>
+  <rect x="188" y="78" width="50" height="24" fill="#c8e6c9" stroke="#2e7d32" stroke-width="2" rx="3"/>
+  <text x="213" y="93" text-anchor="middle" font-size="13" font-family="monospace" fill="#2e7d32">6.5</text>
+  <rect x="138" y="102" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="1.5" rx="3"/>
+  <text x="163" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">2.7</text>
+  <rect x="188" y="102" width="50" height="24" fill="#ffcdd2" stroke="#e74c3c" stroke-width="2" rx="3"/>
+  <text x="213" y="117" text-anchor="middle" font-size="13" font-family="monospace" fill="#c0392b">6.3</text>
+
+  <!-- Target highlight: moved from 8.0 to 6.3 -->
+  <rect x="186" y="100" width="54" height="28" fill="none" stroke="#f57c00" stroke-width="1.5" stroke-dasharray="3,2" rx="4"/>
+
+  <!-- Arrow showing target moved down -->
+  <line x1="97" y1="114" x2="183" y2="114" stroke="#f57c00" stroke-width="1"/>
+  <polygon points="181,111 185,114 181,117" fill="#f57c00"/>
+</svg>

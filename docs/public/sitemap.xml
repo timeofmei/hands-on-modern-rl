@@ -326,7 +326,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/algorithm-taxonomy/</loc>
-    <lastmod>2026-05-08T09:41:21.986Z</lastmod>
+    <lastmod>2026-05-09T07:41:59.902Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -338,7 +338,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/dp-mc-td/</loc>
-    <lastmod>2026-05-09T03:22:35.690Z</lastmod>
+    <lastmod>2026-05-09T09:36:49.940Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -374,25 +374,25 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/value-bellman/</loc>
-    <lastmod>2026-05-09T06:06:21.467Z</lastmod>
+    <lastmod>2026-05-09T06:57:08.213Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter03_mdp/value-q/</loc>
-    <lastmod>2026-05-09T02:49:42.239Z</lastmod>
+    <lastmod>2026-05-09T08:46:37.998Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/cartpole-dqn/</loc>
-    <lastmod>2026-05-08T09:26:36.218Z</lastmod>
+    <lastmod>2026-05-09T07:42:36.761Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/dqn-components/</loc>
-    <lastmod>2026-05-08T09:26:07.764Z</lastmod>
+    <lastmod>2026-05-09T07:44:59.906Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -404,7 +404,7 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/from-q-to-dqn/</loc>
-    <lastmod>2026-05-09T06:04:11.228Z</lastmod>
+    <lastmod>2026-05-09T09:03:55.148Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
@@ -416,13 +416,13 @@
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/mountain-car/</loc>
-    <lastmod>2026-05-08T09:23:44.220Z</lastmod>
+    <lastmod>2026-05-09T09:17:48.149Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://walkinglabs.github.io/hands-on-modern-rl/chapter04_dqn/training-analysis/</loc>
-    <lastmod>2026-05-08T09:23:43.976Z</lastmod>
+    <lastmod>2026-05-09T07:42:25.530Z</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
