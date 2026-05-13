@@ -4,34 +4,45 @@
 
 本节的实验对象是 **DeepCoder**——Berkeley Sky Lab 出品的代码推理模型，其 14B 版本在 LiveCodeBench 上达到 60.6% Pass@1，匹配 OpenAI o3-mini。我们要做的是：用 rLLM 框架复现它的评测和训练流程，看 RL 训练前后模型到底变好了多少、变好在哪。
 
+### 实验目标：RL 训练前后对比
+
+我们将以 Qwen2.5-Coder-3B-Instruct 作为基座模型，用 rLLM 框架做 GRPO RL 训练，在 LiveCodeBench 测试集上评测。预期结果：
+
+| 阶段 | 模型 | LiveCodeBench Pass@1 | 说明 |
+|------|------|---------------------|------|
+| **训练前** | Qwen2.5-Coder-3B-Instruct（基座） | ~30% | 未经 RL 训练的原始模型 |
+| **训练后** | + DeepCoder RL（1 epoch, LoRA rank 32） | ~38-40% | RL 训练后提升 8-10 个百分点 |
+
+如果用更大的模型和更长的训练，效果更显著：
+
+| 模型 | LiveCodeBench Pass@1 |
+|------|---------------------|
+| Qwen3-4B-Instruct（基座） | ~38% |
+| + DeepCoder RL（1 epoch） | ~46% |
+| DeepCoder-14B-Preview（完整训练） | 60.6%（匹配 o3-mini） |
+
+本节动手实验聚焦在 3B 模型上——单卡 24GB 显存即可完成，让你亲自验证"RL 训练确实能让代码 Agent 变强"。
+
 ## rLLM 框架速览
 
 **rLLM** 是一个框架无关的 Agentic RL 训练框架 [^rllm]。核心思想：**你的 Agent 代码不需要改，rLLM 通过 gateway 透明拦截 LLM 调用，自动收集训练所需的全部信息。**
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│  你的 Agent  │────▶│   Traces     │────▶│   Rewards    │────▶│  RL Update   │
-│  (代码不变)  │     │ (自动收集)   │     │ (sandbox等)  │     │  (GRPO等)    │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+```mermaid
+flowchart LR
+    A["你的 Agent<br/>（代码不变）"] --> B["Traces<br/>（自动收集）"]
+    B --> C["Rewards<br/>（sandbox / 规则 / Judge）"]
+    C --> D["RL Update<br/>（GRPO 等）"]
+    D -.-> A
 ```
 
 rLLM 已在多个任务上验证有效性：
 
-| 项目           | 模型规模 | 成果                                            |
-| -------------- | -------- | ----------------------------------------------- |
-| **DeepCoder**  | 14B      | LiveCodeBench 60.6%，匹配 o3-mini [^deepcoder]  |
-| **DeepScaleR** | 1.5B     | AIME 2024 43.1%，超越 O1-Preview [^deepscaleR]  |
-| **DeepSWE**    | 32B      | SWEBench-Verified 59%，开源 SOTA [^deepswe]     |
-| **FinQA**      | 4B       | 金融分析超 Qwen3-235B（59.7% vs 51.4%）[^finqa] |
-
-::: tip 与前面章节的联系
-
-- 10.1 的 **rollout** → rLLM 的 `@rllm.rollout` 装饰器
-- 10.1 的 **Episode/Trajectory** → rLLM 的同名数据结构
-- 10.3 的 **评测体系** → `rllm eval` + `rllm view`
-- 第 8 章的 **GRPO / RLVR** → rLLM 的训练后端
-- 第 8 章的 **可验证奖励** → DeepCoder 的 sandbox 验证
-  :::
+| 项目 | 模型规模 | 成果 |
+|------|----------|------|
+| **DeepCoder** | 14B | LiveCodeBench 60.6%，匹配 o3-mini [^deepcoder] |
+| **DeepScaleR** | 1.5B | AIME 2024 43.1%，超越 O1-Preview [^deepscaleR] |
+| **DeepSWE** | 32B | SWEBench-Verified 59%，开源 SOTA [^deepswe] |
+| **FinQA** | 4B | 金融分析超 Qwen3-235B（59.7% vs 51.4%）[^finqa] |
 
 ## 第零步：环境准备
 
@@ -756,21 +767,6 @@ Before RL Training (基座模型)
 After RL Training (1 epoch, LoRA rank 32)
   Pass@1 (n=50): 39.0%    # 50 题对了 ~20 题，+9 个百分点
 ```
-
-::: details DeepCoder 官方实验结果（参考）
-
-用更大的模型和完整数据集的效果：
-
-| 模型                              | LiveCodeBench Pass@1  |
-| --------------------------------- | --------------------- |
-| Qwen2.5-Coder-3B-Instruct（基座） | ~30%                  |
-| + DeepCoder RL (1 epoch)          | ~38%                  |
-| Qwen3-4B-Instruct（基座）         | ~38%                  |
-| + DeepCoder RL (1 epoch)          | ~46%                  |
-| DeepCoder-14B-Preview             | 60.6%（匹配 o3-mini） |
-
-小模型（3B-4B）通常能提升 5-10 个百分点。14B 模型在更长的训练后可以提升到 o3-mini 水平。
-:::
 
 ### 怎么判断结果是否可信？
 

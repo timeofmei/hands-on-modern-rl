@@ -386,6 +386,129 @@ def reward_hacking_signals(rows):
 
 这些阈值不是工业标准，只是课程实验的护栏。真正项目会根据场景调整：客服模型更看重可用性和安全性，代码模型更看重测试通过率，数学模型更看重正确率和推理过程。
 
+## Reward Hacking 受控实验
+
+前面的监控工具能检测 reward hacking，但最好的学习方式是亲手制造一个。我们故意写一个有漏洞的奖励函数，观察模型如何学会”凑字数”拿高分。
+
+### 有漏洞的奖励函数
+
+```python
+def flawed_reward(prompt: str, response: str) -> float:
+    “””
+    有漏洞的奖励函数。
+    核心问题：把”详细”误写成”越长越好”，且给固定格式和客套话加分。
+    “””
+    length_score = len(response) / 100.0
+
+    format_score = 0.0
+    if “- “ in response or “1.” in response:
+        format_score += 0.5
+    if “**” in response:
+        format_score += 0.5
+
+    politeness_score = 0.0
+    for phrase in [“我很乐意”, “希望这能帮到”, “请注意”, “以下是一些”]:
+        if phrase in response:
+            politeness_score += 0.3
+
+    return length_score + format_score + politeness_score
+```
+
+这个奖励函数想表达的是”回答应该详细、有结构、有礼貌”，但实际编码出来的是：越长越好、有列表就好、有加粗就好、有客套话就好。PPO 一旦发现这个规律，就会把回答长度、标题、列表和客套话一起推高。
+
+手算两个回答的坏奖励。同一个 prompt：”请用一句话解释 PPO 的 KL 惩罚。”
+
+| 回答 | 长度分  | 格式分 | 客套话分 | 总分 | 人类观感 |
+| ---- | ------- | ------ | -------- | ---- | -------- |
+| “KL 惩罚限制新策略偏离参考策略太远，防止 PPO 更新失控。” | 约 0.32 | 0.0    | 0.0      | 0.32 | 简洁准确 |
+| “我很乐意帮助你。以下是一些重要内容：- **第一点**：PPO 很重要。- **第二点**：KL 也很重要。- **第三点**：希望这能帮到你。” | 约 0.75 | 1.0    | 0.6      | 2.35 | 冗长空泛 |
+
+坏奖励会强烈偏好冗长空泛的回答。只要 PPO 继续优化，模型就会更常写这类回答。
+
+### 观察异常信号
+
+跑这个实验时，至少同时画三条曲线：
+
+| 指标              | 正常情况               | Reward hacking 信号            |
+| ----------------- | ---------------------- | ------------------------------ |
+| `reward_mean`     | 缓慢上升               | 持续上升，且远快于人工质量提升 |
+| `response_length` | 在任务需要的范围内波动 | 和 reward 一起持续变长         |
+| `distinct_ngram`  | 保持相对稳定           | 明显下降，说明输出越来越模板化 |
+
+一次受控实验可能出现这样的日志：
+
+| step | reward | length | distinct-4 | KL   | 人工备注     |
+| ---- | ------ | ------ | ---------- | ---- | ------------ |
+| 0    | 0.8    | 120    | 0.82       | 0.00 | SFT 输出正常 |
+| 50   | 1.4    | 180    | 0.76       | 0.04 | 回答略变长   |
+| 100  | 2.2    | 310    | 0.61       | 0.09 | 客套话增多   |
+| 150  | 3.1    | 520    | 0.42       | 0.18 | 明显模板化   |
+| 200  | 4.0    | 760    | 0.31       | 0.27 | 大量重复列表 |
+
+如果只看 reward，这是一条漂亮曲线；如果看样本，这是训练坏了。
+
+### 多维度奖励修复
+
+修复思路不是简单地”惩罚长度”，而是把原来混在一起的目标拆开：
+
+```python
+def safer_reward(prompt: str, response: str) -> float:
+    helpfulness = judge_helpfulness(prompt, response)
+    correctness = judge_correctness(prompt, response)
+    format_score = validate_required_format(prompt, response)
+    repetition_penalty = ngram_repetition_rate(response, n=4)
+    length_penalty = max(0, len(response) - target_max_length(prompt)) / 400
+
+    return (
+        0.40 * helpfulness
+        + 0.35 * correctness
+        + 0.15 * format_score
+        - 0.05 * repetition_penalty
+        - 0.05 * length_penalty
+    )
+```
+
+这个版本把 helpfulness 和 correctness 分开，format 只占较小权重，length 是惩罚不是奖励，repetition 单独惩罚。然后再加上 PPO-RLHF 里的 KL 约束，避免策略为了追逐新奖励而离 SFT reference 太远。
+
+## 数据飞轮
+
+如果 RM 已经学会偏爱长废话，光加长度惩罚可能治标不治本。更稳的做法是把坏样本加回偏好数据，让 RM 明确学到它们应该低分：
+
+```json
+{
+  “prompt”: “请用一句话解释 PPO 的 KL 惩罚。”,
+  “chosen”: “KL 惩罚限制新策略偏离参考策略太远，防止 PPO 更新过猛。”,
+  “rejected”: “我很乐意帮助你。以下是一些重要说明：PPO 很重要，KL 很重要，希望这能帮到你...”,
+  “tags”: [“length_hack”, “template_hack”],
+  “source”: “ppo_badcase”
+}
+```
+
+这就是数据飞轮的基本动作：模型暴露了失败模式，我们把失败模式变成训练数据，再回归评估它是否被修掉。
+
+一个实际可用的数据飞轮通常长这样：
+
+```text
+部署模型或运行离线评估
+  -> 收集 badcase、用户反馈、评测失败样本
+  -> 按错误类型聚类
+  -> 定向生产 SFT / preference 数据
+  -> 经过质量闸门
+  -> 训练 SFT、RM 或 PPO-RLHF
+  -> 回归评估和人工抽检
+  -> 通过后再部署
+```
+
+关键点是”按错误类型补数据”，而不是盲目扩大数据量。badcase 应该打标签：
+
+| 标签            | 含义                   | 后续补数据方向                     |
+| --------------- | ---------------------- | ---------------------------------- |
+| `length_hack`   | 回答变长但信息密度低   | 加短而准的 chosen、长废话 rejected |
+| `template_hack` | 固定套话反复出现       | 加多风格 chosen、模板 rejected     |
+| `hallucination` | 编造事实或引用         | 加事实核验数据、拒绝不确定         |
+| `over_refusal`  | 该答的问题也拒绝       | 加安全边界样本                     |
+| `under_refusal` | 高风险问题没拒绝       | 加安全拒答偏好对                   |
+
 ## 本节小结
 
 RLHF 的评估必须同时回答三个问题：
@@ -394,10 +517,14 @@ RLHF 的评估必须同时回答三个问题：
 2. 通用能力和专项能力有没有掉点？
 3. 高 reward 的回答是否真的高质量？
 
-如果只看 reward 曲线，就很容易把 reward hacking 当成模型进步。评估闭环建立起来以后，最后再看工程放大问题：这套 TRL 小实验如何迁移到 OpenRLHF / NeMo RL 的大参数训练——[从小参数到大参数](./scaling-to-large-models)。
+如果只看 reward 曲线，就很容易把 reward hacking 当成模型进步。评估闭环 + reward hacking 受控实验 + 数据飞轮，三者一起构成 RLHF 的质量护栏。
+
+这一章到这里就完整闭环了：base model 不是 assistant，SFT 给它行为起点，RM 给它偏好方向，PPO 让它按奖励练习，评估和数据飞轮负责防止它学歪。下一章会从这条经典 RLHF 流水线出发，解释为什么现代方法要简化 RM、Critic 或人类偏好本身——[后训练对齐](../chapter09_alignment/intro)。
 
 ## 练习
 
 1. 设计一个 30 条 prompt 的轻量回归集，至少包含格式、推理、事实、安全、语言质量 5 类。
 2. 给 10 条 pairwise 评估结果计算 win rate，其中 tie 按 0.5 胜处理。
-3. 写一个人工抽检 rubric，用来判断高 reward 回答是否只是“更长更像模板”。
+3. 写一个人工抽检 rubric，用来判断高 reward 回答是否只是”更长更像模板”。
+4. 修改 `flawed_reward`，故意让它偏爱”包含专业术语”的回答，并设计 3 个 stress case。
+5. 设计一轮数据飞轮：从 badcase 收集到重新训练，你会设置哪些质量闸门？

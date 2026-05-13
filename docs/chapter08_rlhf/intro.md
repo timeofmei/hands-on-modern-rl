@@ -93,10 +93,8 @@ $$
 | [标准 RLHF 流水线](./standard-rlhf-pipeline)                    | InstructGPT 风格 SFT → RM → PPO 的输入输出是什么？     | 标准流程图与 artifact 清单       |
 | [SFT：教模型按指令回答](./imitation-learning-pipeline)          | SFT 数据和偏好数据怎么构造？                           | SFT 训练数据与 SFT 模型          |
 | [Reward Model：教一个裁判](./reward-function-design)            | 如何把 chosen/rejected 偏好对变成可优化的标量奖励？    | Reward Model 与 RM 验证指标      |
-| [PPO-RLHF：按奖励练习](./ppo-rlhf-loop)                         | Actor、Reference、Reward Model、Critic 如何协作？      | PPO-RLHF 四模型结构              |
-| [评估：RLHF 到底有没有变好](./evaluation)                       | 如何证明模型真的变好，而且没有掉点或 reward hacking？  | 自动评测、偏好评测、人工抽检方案 |
-| [从小参数到大参数](./scaling-to-large-models)                   | TRL 小实验如何迁移到 OpenRLHF / NeMo RL 的大参数训练？ | 小模型和生产工程的映射表         |
-| [扩展实战：Reward Hacking 与数据飞轮](./extended-practice)      | 如何故意制造、诊断并修复奖励漏洞？                     | 受控实验与数据飞轮模板           |
+| [PPO-RLHF：按奖励练习](./ppo-rlhf-loop)                         | Actor、Reference、Reward Model、Critic 如何协作？      | PPO-RLHF 四模型结构 + 大参数扩展 |
+| [评估与奖励黑客](./evaluation)                                  | 如何证明模型变好且没有 reward hacking？数据飞轮怎么做？ | 评估闭环 + 受控实验 + 飞轮模板   |
 
 ## 8.6 为什么必须做评估
 

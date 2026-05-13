@@ -223,21 +223,20 @@ graph TD
 
 2016 年，AlphaGo 击败李世石，证明了强化学习在完美信息博弈中的威力。但真正让 RL 走向大众视野中心的，是 2022 年 ChatGPT 的发布——人们发现，让大模型从"能说话"变成"说好话"的关键技术，正是强化学习。
 
+![ChatGPT 早期界面示例](./brief-history/images/chatgpt.png)
+
+<div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
+  <em>图 5：ChatGPT 将大语言模型带入大众视野，也让 RLHF 从论文中的训练流程变成了真实产品背后的关键技术。来源：OpenAI <a href="https://openai.com/index/chatgpt/" target="_blank" rel="noopener noreferrer">Introducing ChatGPT</a></em>
+</div>
+
 在游戏环境中，奖励信号是清晰且自动的：吃金币 +1 分，掉坑里 -100 分。但当我们要让 AI 学会"好好说话"时，问题来了：什么是"好"的回答？礼貌？有用？安全？人类偏好如此复杂，环境根本无法自动判断一句回答该得几分。
 
 **RLHF（Reinforcement Learning from Human Feedback）** 给出了第一套解决方案，通过三个阶段完成从"能说话"到"说好话"的转变：
 
-<div align="center" style="margin: 2.5rem 0;">
+![InstructGPT 的三步训练流程](../chapter03_mdp/images/rlhf-openai-methods-diagram.webp)
 
-```mermaid
-graph LR
-    A["人类撰写<br/>高质量对话"] -->|"SFT"| B["基础对话模型"]
-    C["人类对回答<br/>排序标注"] -->|"训练"| D["奖励模型 RM"]
-    B -->|"生成回答"| D
-    D -->|"奖励信号"| E["PPO / GRPO<br/>RL 优化"]
-    E -->|"优化策略"| B
-```
-
+<div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
+  <em>图 6：OpenAI 在 InstructGPT 中使用的三步训练流程：先监督微调，再训练奖励模型，最后用强化学习优化策略。来源：OpenAI <a href="https://openai.com/index/instruction-following/" target="_blank" rel="noopener noreferrer">Aligning language models to follow instructions</a></em>
 </div>
 
 1. **监督微调（SFT）**：用人类撰写的高质量对话示例微调模型，让它学会基本的对话格式。
@@ -245,6 +244,12 @@ graph LR
 3. **强化学习优化（RL）**：用 PPO 等算法，以奖励模型的分数为信号，进一步优化模型的回答策略。
 
 大模型时代的 RL 演化出了两条关键路线。**路线一：基于偏好的对齐（RLHF / DPO）**——当判断标准是"人类是否喜欢"（语气是否礼貌、回答是否安全）时，环境无法自动给分。我们先用人类标注训练一个奖励模型来"模仿"人类偏好，再用它指导 RL 训练。DPO 则更进一步，巧妙地将奖励信号"隐藏"在策略概率比中，绕过了显式的奖励模型——你将在第 8-9 章亲手实践这条流水线。**路线二：基于可验证奖励的纯强化学习（RLVR）**——当转向数学、代码或复杂推理任务时，答案的对错是客观可验证的。DeepSeek-R1-Zero 等前沿工作证明：不再需要预先进行 SFT 或训练奖励模型，只要给模型一个基于规则的反馈，纯粹的强化学习就能驱动基础模型自发涌现出长思维链（Chain-of-Thought）和强大的推理能力。这是当前 AI 迈向 AGI 的最前沿探索之一。
+
+![DeepSeek-R1 的强化学习训练流水线](../chapter12_future_trends/self-play-outlook/images/deepseek_r1_pipeline.png)
+
+<div style="text-align: center; font-size: 0.9em; color: var(--vp-c-text-2); margin-top: -10px; margin-bottom: 20px;">
+  <em>图 7：DeepSeek-R1 的训练流水线把“大模型时代的 RL”推向另一条路线：在可验证任务上，让模型通过在线采样、规则奖励和 GRPO 类优化自我提升。来源：<a href="https://arxiv.org/abs/2501.12948" target="_blank" rel="noopener noreferrer">DeepSeek-R1 Paper</a></em>
+</div>
 
 还记得前文介绍的 PPO 吗？在大模型时代，它从游戏控制的集大成者，变成了整个 LLM 对齐工业的基石。但 PPO 需要一个额外的 Critic 网络来评估动作好坏，对于大模型来说这意味着巨大的计算开销。**GRPO（Group Relative Policy Optimization）** 应运而生——它用组内相对优势替代 Critic 网络，在同一次生成的多个回答之间比较优劣，直接从中学习"哪个更好"。这一简化让 RL 训练的成本大幅降低，成为开源社区对齐大模型的主流选择之一。
 

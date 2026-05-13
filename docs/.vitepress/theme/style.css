@@ -562,11 +562,17 @@
   margin: 2.5rem 0;
 }
 
+.vp-doc .mermaid-static svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .vp-doc .mermaid-static img {
   max-width: 100%;
   height: auto;
 }
 
+.vp-doc .preface-structure-map .mermaid-static svg,
 .vp-doc .preface-structure-map .mermaid-static img {
   max-height: none;
 }

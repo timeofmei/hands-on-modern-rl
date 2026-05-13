@@ -35,6 +35,14 @@ const sidebarResizing = ref(false)
 
 const readingToolsButton = ref(null)
 const readingToolsPanel = ref(null)
+const mermaidViewerOpen = ref(false)
+const mermaidViewerSrc = ref('')
+const mermaidViewerAlt = ref('')
+const mermaidViewerScale = ref(1)
+const mermaidViewerScroll = ref(null)
+const mermaidViewerNaturalWidth = ref(0)
+const mermaidViewerNaturalHeight = ref(0)
+const mermaidViewerCustomZoom = ref(false)
 
 const isHomePage = computed(() => frontmatter.value.layout === 'home')
 const showDocChrome = computed(() => !isHomePage.value)
@@ -50,6 +58,39 @@ let outlineObserver = null
 let sidebarObserver = null
 let navigationSyncTimer = null
 let zoom = null
+
+const MERMAID_VIEWER_MIN_SCALE = 0.02
+const MERMAID_VIEWER_MAX_SCALE = 6
+const MERMAID_VIEWER_SCALE_STEP = 0.25
+
+const mermaidViewerImageStyle = computed(() => {
+  if (!mermaidViewerNaturalWidth.value) {
+    return {
+      maxHeight: '100%',
+      maxWidth: '100%'
+    }
+  }
+
+  return {
+    height: `${Math.max(
+      1,
+      mermaidViewerNaturalHeight.value * mermaidViewerScale.value
+    )}px`,
+    width: `${Math.max(1, mermaidViewerNaturalWidth.value * mermaidViewerScale.value)}px`
+  }
+})
+
+const mermaidViewerStageStyle = computed(() => {
+  if (!mermaidViewerNaturalWidth.value) return {}
+
+  return {
+    height: `${Math.max(
+      1,
+      mermaidViewerNaturalHeight.value * mermaidViewerScale.value
+    )}px`,
+    width: `${Math.max(1, mermaidViewerNaturalWidth.value * mermaidViewerScale.value)}px`
+  }
+})
 
 const homeTaglineTyping = {
   typingSpeed: 42,
@@ -142,6 +183,170 @@ function closeReadingTools() {
   readingToolsOpen.value = false
 }
 
+function clampMermaidViewerScale(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric)) return 1
+  return Math.min(
+    MERMAID_VIEWER_MAX_SCALE,
+    Math.max(MERMAID_VIEWER_MIN_SCALE, numeric)
+  )
+}
+
+function openMermaidViewer(image) {
+  if (!image) return
+  mermaidViewerSrc.value = image.currentSrc || image.src
+  mermaidViewerAlt.value = image.alt || 'Mermaid diagram'
+  mermaidViewerNaturalWidth.value = image.naturalWidth || 0
+  mermaidViewerNaturalHeight.value = image.naturalHeight || 0
+  mermaidViewerScale.value = 1
+  mermaidViewerCustomZoom.value = false
+  mermaidViewerOpen.value = true
+  document.body.classList.add('ct-mermaid-viewer-open')
+  nextTick(() => {
+    window.requestAnimationFrame(fitMermaidViewerToScreen)
+  })
+}
+
+function closeMermaidViewer() {
+  mermaidViewerOpen.value = false
+  mermaidViewerSrc.value = ''
+  mermaidViewerAlt.value = ''
+  mermaidViewerNaturalWidth.value = 0
+  mermaidViewerNaturalHeight.value = 0
+  mermaidViewerCustomZoom.value = false
+  document.body.classList.remove('ct-mermaid-viewer-open')
+}
+
+function centerMermaidViewer() {
+  const scroll = mermaidViewerScroll.value
+  if (!scroll) return
+  scroll.scrollLeft = Math.max(0, (scroll.scrollWidth - scroll.clientWidth) / 2)
+  scroll.scrollTop = Math.max(
+    0,
+    (scroll.scrollHeight - scroll.clientHeight) / 2
+  )
+}
+
+function getMermaidViewerFitScale() {
+  const scroll = mermaidViewerScroll.value
+  const width = mermaidViewerNaturalWidth.value
+  const height = mermaidViewerNaturalHeight.value
+  if (!scroll || !width || !height) return 1
+
+  const styles = window.getComputedStyle(scroll)
+  const availableWidth =
+    scroll.clientWidth -
+    Number.parseFloat(styles.paddingLeft || 0) -
+    Number.parseFloat(styles.paddingRight || 0)
+  const availableHeight =
+    scroll.clientHeight -
+    Number.parseFloat(styles.paddingTop || 0) -
+    Number.parseFloat(styles.paddingBottom || 0)
+
+  return clampMermaidViewerScale(
+    Math.min(availableWidth / width, availableHeight / height, 1)
+  )
+}
+
+function fitMermaidViewerToScreen() {
+  mermaidViewerScale.value = getMermaidViewerFitScale()
+  nextTick(() => {
+    window.requestAnimationFrame(centerMermaidViewer)
+  })
+}
+
+function setMermaidViewerScale(value, anchorEvent = null) {
+  const scroll = mermaidViewerScroll.value
+  const previousScale = mermaidViewerScale.value
+  const nextScale = clampMermaidViewerScale(value)
+  if (Math.abs(nextScale - previousScale) < 0.001) return
+
+  let anchor = null
+  if (scroll && anchorEvent) {
+    const rect = scroll.getBoundingClientRect()
+    anchor = {
+      offsetX: anchorEvent.clientX - rect.left,
+      offsetY: anchorEvent.clientY - rect.top,
+      scrollX: scroll.scrollLeft,
+      scrollY: scroll.scrollTop,
+      ratio: nextScale / previousScale
+    }
+  }
+
+  mermaidViewerCustomZoom.value = true
+  mermaidViewerScale.value = nextScale
+
+  nextTick(() => {
+    window.requestAnimationFrame(() => {
+      if (!scroll || !anchor) {
+        centerMermaidViewer()
+        return
+      }
+
+      scroll.scrollLeft =
+        (anchor.scrollX + anchor.offsetX) * anchor.ratio - anchor.offsetX
+      scroll.scrollTop =
+        (anchor.scrollY + anchor.offsetY) * anchor.ratio - anchor.offsetY
+    })
+  })
+}
+
+function zoomMermaidViewer(delta) {
+  setMermaidViewerScale(mermaidViewerScale.value + delta)
+}
+
+function resetMermaidViewerZoom() {
+  mermaidViewerCustomZoom.value = false
+  fitMermaidViewerToScreen()
+}
+
+function handleMermaidViewerImageLoad(event) {
+  const image = event.currentTarget
+  mermaidViewerNaturalWidth.value = image.naturalWidth || 0
+  mermaidViewerNaturalHeight.value = image.naturalHeight || 0
+  if (!mermaidViewerCustomZoom.value) {
+    fitMermaidViewerToScreen()
+  }
+}
+
+function handleMermaidViewerWheel(event) {
+  if (!mermaidViewerOpen.value) return
+  event.preventDefault()
+
+  const delta = event.deltaY || event.deltaX
+  if (!delta) return
+
+  const factor = Math.exp(-delta * 0.0015)
+  setMermaidViewerScale(mermaidViewerScale.value * factor, event)
+}
+
+function handleMermaidImageClick(event) {
+  const image = event.target.closest('img[data-mermaid-viewer="true"]')
+  if (!image) return
+  event.preventDefault()
+  event.stopPropagation()
+  openMermaidViewer(image)
+}
+
+function initMermaidViewer() {
+  if (typeof document === 'undefined') return
+  document
+    .querySelectorAll('.main')
+    .forEach((main) => {
+      main.removeEventListener('click', handleMermaidImageClick)
+      main.addEventListener('click', handleMermaidImageClick)
+    })
+}
+
+function cleanupMermaidViewer() {
+  if (typeof document === 'undefined') return
+  document
+    .querySelectorAll('.main')
+    .forEach((main) => {
+      main.removeEventListener('click', handleMermaidImageClick)
+    })
+}
+
 function resetFontSize() {
   fontSize.value = DEFAULT_FONT_SIZE
 }
@@ -203,6 +408,9 @@ function startSidebarResize(event) {
 function handleViewportResize() {
   setSidebarWidth(sidebarWidth.value, false)
   updateSidebarEdgePosition()
+  if (mermaidViewerOpen.value && !mermaidViewerCustomZoom.value) {
+    window.requestAnimationFrame(fitMermaidViewerToScreen)
+  }
 }
 
 function handleDocumentPointerDown(event) {
@@ -217,6 +425,7 @@ function handleDocumentPointerDown(event) {
 
 function handleWindowKeydown(event) {
   if (event.key === 'Escape') {
+    closeMermaidViewer()
     closeReadingTools()
   }
 }
@@ -284,8 +493,8 @@ function cleanupNavigationSync() {
 function initMediumZoom() {
   if (typeof document === 'undefined') return
   if (zoom) zoom.detach()
-  zoom = mediumZoom('.main img', {
-    background: 'var(--vp-c-bg)',
+  zoom = mediumZoom('.main img:not([data-mermaid-viewer="true"])', {
+    background: 'rgba(15, 23, 42, 0.62)',
     margin: 24
   })
 }
@@ -379,6 +588,7 @@ onMounted(() => {
   initNavigationSync()
   updateSidebarEdgePosition()
   initMediumZoom()
+  initMermaidViewer()
   renderSidebarKatex()
   initGithubStars(theme)
 })
@@ -386,6 +596,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   stopSidebarResize()
   cleanupNavigationSync()
+  cleanupMermaidViewer()
+  closeMermaidViewer()
   window.removeEventListener('resize', handleViewportResize)
   document.removeEventListener('pointerdown', handleDocumentPointerDown)
   window.removeEventListener('keydown', handleWindowKeydown)
@@ -420,6 +632,7 @@ watch(
     await nextTick()
     initNavigationSync()
     initMediumZoom()
+    initMermaidViewer()
     renderSidebarKatex()
     window.requestAnimationFrame(updateSidebarEdgePosition)
   }
@@ -583,6 +796,63 @@ watch(
 
   <ClientOnly>
     <ReadingProgress v-if="showDocChrome" />
+  </ClientOnly>
+
+  <ClientOnly>
+    <Teleport to="body">
+      <div
+        v-if="mermaidViewerOpen"
+        class="ct-mermaid-viewer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="查看图表"
+        @click.self="closeMermaidViewer"
+      >
+        <div class="ct-mermaid-viewer-toolbar">
+          <button
+            type="button"
+            @click="zoomMermaidViewer(-MERMAID_VIEWER_SCALE_STEP)"
+          >
+            -
+          </button>
+          <button type="button" @click="resetMermaidViewerZoom">重置</button>
+          <button
+            type="button"
+            @click="zoomMermaidViewer(MERMAID_VIEWER_SCALE_STEP)"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="关闭图表"
+            @click="closeMermaidViewer"
+          >
+            关闭
+          </button>
+        </div>
+        <div
+          ref="mermaidViewerScroll"
+          class="ct-mermaid-viewer-scroll"
+          @click.self="closeMermaidViewer"
+          @wheel="handleMermaidViewerWheel"
+        >
+          <div
+            class="ct-mermaid-viewer-stage"
+            :style="mermaidViewerStageStyle"
+            @click.self="closeMermaidViewer"
+          >
+            <img
+              class="ct-mermaid-viewer-image"
+              :src="mermaidViewerSrc"
+              :alt="mermaidViewerAlt"
+              :style="mermaidViewerImageStyle"
+              @load="handleMermaidViewerImageLoad"
+              @click="closeMermaidViewer"
+            />
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </ClientOnly>
 </template>
 
@@ -939,8 +1209,72 @@ watch(
   z-index: 999;
 }
 
+.medium-zoom--opened .medium-zoom-overlay {
+  background: rgba(15, 23, 42, 0.62) !important;
+}
+
 .medium-zoom-image--opened {
   z-index: 1000;
+}
+
+.ct-mermaid-viewer-open {
+  overflow: hidden;
+}
+
+.ct-mermaid-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.ct-mermaid-viewer-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px;
+}
+
+.ct-mermaid-viewer-toolbar button {
+  height: 34px;
+  min-width: 44px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ct-mermaid-viewer-toolbar button:hover {
+  background: #fff;
+}
+
+.ct-mermaid-viewer-scroll {
+  overflow: auto;
+  padding: 12px 24px 32px;
+}
+
+.ct-mermaid-viewer-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0 auto;
+}
+
+.ct-mermaid-viewer-image {
+  display: block;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  height: auto;
+  background: #fff;
+  cursor: zoom-out;
 }
 
 .main img {
@@ -948,7 +1282,7 @@ watch(
   transition: transform 0.2s ease;
 }
 
-.main img:hover {
+.main img:not(.ct-mermaid-viewer-image):hover {
   transform: scale(1.01);
 }
 </style>

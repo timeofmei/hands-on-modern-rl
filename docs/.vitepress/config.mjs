@@ -509,7 +509,7 @@ function optimizedMermaidPlugin(md) {
         const source = md.utils.escapeHtml(block.source)
         const page = md.utils.escapeHtml(block.page)
 
-        return `<p class="mermaid-static"><img src="${src}" alt="Mermaid diagram" data-source-src="/src/${source}" data-source-page="/src/${page}" data-source-index="${block.index}" loading="lazy" decoding="async"></p>\n`
+        return `<p class="mermaid-static"><img src="${src}" alt="Mermaid diagram" data-mermaid-viewer="true" data-source-src="/src/${source}" data-source-page="/src/${page}" data-source-index="${block.index}" loading="lazy" decoding="async"></p>\n`
       }
     }
 
@@ -700,16 +700,16 @@ const zhSidebar = {
               link: '/chapter06_actor_critic/actor-critic'
             },
             {
-              text: '6.4 Actor-Critic 的前沿大规模应用',
-              link: '/chapter06_actor_critic/ac-frontier'
-            },
-            {
-              text: '6.5 动手：Pendulum 摆杆平衡',
+              text: '6.4 动手：Pendulum 摆杆平衡',
               link: '/chapter06_actor_critic/pendulum'
             },
             {
-              text: '6.6 动手：BipedalWalker 双足行走',
+              text: '6.5 动手：BipedalWalker 双足行走',
               link: '/chapter06_actor_critic/bipedalwalker'
+            },
+            {
+              text: '6.6 Actor-Critic 的前沿大规模应用',
+              link: '/chapter06_actor_critic/ac-frontier'
             }
           ]
         },
@@ -731,7 +731,7 @@ const zhSidebar = {
               link: '/chapter07_ppo/trust-region-clipping'
             },
             {
-              text: '7.4 优势估计与奖励模型',
+              text: '7.4 GAE 与奖励模型',
               link: '/chapter07_ppo/gae-reward-model'
             },
             {
@@ -756,7 +756,7 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '8.1 从模型到助手',
+              text: '8.1 Base 模型与对齐助手',
               link: '/chapter08_rlhf/base-model-to-assistant'
             },
             {
@@ -764,7 +764,7 @@ const zhSidebar = {
               link: '/chapter08_rlhf/standard-rlhf-pipeline'
             },
             {
-              text: '8.3 指令微调',
+              text: '8.3 SFT 指令微调',
               link: '/chapter08_rlhf/imitation-learning-pipeline'
             },
             {
@@ -772,21 +772,13 @@ const zhSidebar = {
               link: '/chapter08_rlhf/reward-function-design'
             },
             {
-              text: '8.5 PPO 微调',
+              text: '8.5 PPO-RLHF 对齐',
               link: '/chapter08_rlhf/ppo-rlhf-loop'
             },
             {
-              text: '8.6 评估效果',
+              text: '8.6 评估与奖励黑客',
               link: '/chapter08_rlhf/evaluation'
             },
-            {
-              text: '8.7 扩展到大模型',
-              link: '/chapter08_rlhf/scaling-to-large-models'
-            },
-            {
-              text: '8.8 奖励黑客',
-              link: '/chapter08_rlhf/extended-practice'
-            }
           ]
         },
         {
@@ -795,31 +787,27 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '9.1 偏好优化方法',
+              text: '9.1 DPO 原理、数学与选型',
               link: '/chapter09_alignment/dpo-theory-and-family'
             },
             {
-              text: '9.2 DPO 实验',
-              link: '/chapter09_alignment/dpo-hands-on'
-            },
-            {
-              text: '9.3 GRPO',
+              text: '9.2 GRPO 训练与核心机制',
               link: '/chapter09_grpo_rlvr/grpo-practice-and-mechanism'
             },
             {
-              text: '9.4 R1 与 DAPO',
+              text: '9.3 R1-Zero 范式',
               link: '/chapter09_grpo_rlvr/deepseek-dapo'
             },
             {
-              text: '9.5 可验证奖励',
+              text: '9.4 RLVR 可验证奖励',
               link: '/chapter09_grpo_rlvr/rlvr'
             },
             {
-              text: '9.6 策略蒸馏',
+              text: '9.5 OPD 在线蒸馏',
               link: '/chapter09_grpo_rlvr/on-policy-distillation'
             },
             {
-              text: '9.7 后训练实践',
+              text: '9.6 后训练工业实践',
               link: '/chapter09_alignment/industrial-post-training'
             }
           ]
@@ -842,7 +830,7 @@ const zhSidebar = {
               link: '/chapter10_agentic_rl/industrial-evaluation'
             },
             {
-              text: '10.4 Agent 数据制造',
+              text: '10.4 动手：Agent 数据制造',
               link: '/chapter10_agentic_rl/agent-data-swe-smith'
             },
             {
@@ -850,7 +838,7 @@ const zhSidebar = {
               link: '/chapter10_agentic_rl/rllm-deepcoder-lab'
             },
             {
-              text: '10.6 动手：金融 Agent',
+              text: '10.6 动手：金融问答 Agent',
               link: '/chapter10_agentic_rl/rllm-finqa-lab'
             },
             {
@@ -858,7 +846,7 @@ const zhSidebar = {
               link: '/chapter10_agentic_rl/deep-research-agent'
             },
             {
-              text: '10.8 实现训练系统',
+              text: '10.8 Agentic RL 训练系统',
               link: '/chapter10_agentic_rl/build-agentic-training-system'
             },
             {
@@ -879,23 +867,23 @@ const zhSidebar = {
           collapsed: false,
           items: [
             {
-              text: '11.1 训练 VLM',
+              text: '11.1 VLM 强化训练',
               link: '/chapter11_vlm_rl/vlm-grpo-hands-on'
             },
             {
-              text: '11.2 视觉奖励',
+              text: '11.2 视觉奖励信号',
               link: '/chapter11_vlm_rl/vlm-challenges'
             },
             {
-              text: '11.3 VLM 推理框架',
+              text: '11.3 VLM RL 推理框架',
               link: '/chapter11_vlm_rl/vlm-frameworks'
             },
             {
-              text: '11.4 视觉生成',
+              text: '11.4 视觉生成 RL',
               link: '/chapter11_vlm_rl/visual-generation-rl'
             },
             {
-              text: '11.5 动手：GeoQA',
+              text: '11.5 动手：GeoQA 几何推理',
               link: '/chapter11_vlm_rl/easyr1-geoqa'
             }
           ]
