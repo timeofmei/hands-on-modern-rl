@@ -201,6 +201,7 @@ Issues and pull requests are welcome for typo fixes, conceptual corrections, rep
 
 > **Note:** This course was created with AI assistance and has not yet been fully reviewed. It may contain factual mistakes or code that does not run as expected. Issues and pull requests are very welcome.
 
+- **[2026-05-13]** 🚀 **Major Upgrade: LLM and Traditional RL Hands-on Labs**: Added reproducible training examples for **Agentic RL** (Deep Research / rLLM) and **Traditional RL** (Actor-Critic continuous control). Includes complete code and fine-tuning analysis for building an Agentic training system from scratch, along with new VLM RL (GeoQA geometry reasoning) hands-on experiments!
 - **[2026-05-02]** Initial browsable open-source release for testing and feedback.
 
 ## Roadmap
