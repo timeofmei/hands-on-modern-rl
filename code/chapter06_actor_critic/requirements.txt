@@ -1,0 +1,7 @@
+# 第6章：Actor-Critic 连续控制实验依赖
+gymnasium[classic-control]>=0.29.0
+stable-baselines3>=2.0.0
+torch>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+imageio>=2.30.0
