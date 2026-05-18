@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run assets:optimize && vitepress dev docs",
+    "dev:fast": "vitepress dev docs",
     "build": "npm run assets:optimize && npm run sitemap && vitepress build docs",
     "build:force": "npm run assets:optimize && npm run sitemap && vitepress build docs --force",
     "pdf:build": "node scripts/build-pdf.mjs",

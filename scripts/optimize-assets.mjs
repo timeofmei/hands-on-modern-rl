@@ -542,7 +542,7 @@ async function captureSvgAsWebp(page, sourcePath, outputPath) {
   })
 }
 
-async function renderSvgRasters(manifest) {
+async function renderSvgRasters(manifest, sharedBrowser = null) {
   const svgAssets = Object.entries(manifest.assets).filter(
     ([, asset]) => asset.type === 'svg'
   )
@@ -616,16 +616,22 @@ async function renderSvgRasters(manifest) {
     return
   }
 
-  const { browser, executablePath, error } = await createBrowser()
+  let browser = sharedBrowser
+  let ownBrowser = false
 
-  if (error) {
-    manifest.svgRasterizer = {
-      status: 'skipped',
-      reason: error,
-      rasterized,
-      total: svgAssets.length
+  if (!browser) {
+    const result = await createBrowser()
+    if (result.error) {
+      manifest.svgRasterizer = {
+        status: 'skipped',
+        reason: result.error,
+        rasterized,
+        total: svgAssets.length
+      }
+      return
     }
-    return
+    browser = result.browser
+    ownBrowser = true
   }
 
   try {
@@ -699,10 +705,10 @@ async function renderSvgRasters(manifest) {
       status: 'optimized',
       rasterized,
       total: svgAssets.length,
-      executablePath
+      executablePath: browser.process()?.spawnfile || null
     }
   } finally {
-    await browser.close()
+    if (ownBrowser && browser) await browser.close()
   }
 }
 
@@ -884,7 +890,7 @@ function buildExistingMermaidMap() {
   )
 }
 
-async function renderMermaidBlocks(manifest) {
+async function renderMermaidBlocks(manifest, sharedBrowser = null) {
   const blocks = manifest.mermaid
   const existingMermaid = buildExistingMermaidMap()
 
@@ -942,36 +948,31 @@ async function renderMermaidBlocks(manifest) {
     return
   }
 
-  const executablePath = findBrowserExecutable()
+  let browser = sharedBrowser
+  let ownBrowser = false
 
-  if (!executablePath || !fs.existsSync(mermaidRuntimePath)) {
+  if (!browser) {
+    const result = await createBrowser()
+    if (result.error) {
+      manifest.mermaidRenderer = {
+        status: 'skipped',
+        reason: result.error
+      }
+      return
+    }
+    browser = result.browser
+    ownBrowser = true
+  }
+
+  if (!fs.existsSync(mermaidRuntimePath)) {
     manifest.mermaidRenderer = {
       status: 'skipped',
-      reason: !executablePath
-        ? 'missing Chrome or Chromium executable'
-        : 'missing mermaid runtime'
+      reason: 'missing mermaid runtime'
     }
     return
   }
 
-  let puppeteer
   try {
-    puppeteer = await import('puppeteer-core')
-  } catch (error) {
-    manifest.mermaidRenderer = {
-      status: 'skipped',
-      reason: `missing puppeteer-core: ${error.message}`
-    }
-    return
-  }
-
-  let browser
-  try {
-    browser = await puppeteer.default.launch({
-      executablePath,
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    })
     const page = await browser.newPage()
     await page.setViewport({
       width: options.maxWidth,
@@ -1063,7 +1064,7 @@ async function renderMermaidBlocks(manifest) {
       reason: `browser launch failed: ${error.message}`
     }
   } finally {
-    if (browser) await browser.close()
+    if (ownBrowser && browser) await browser.close()
   }
 }
 
@@ -1165,13 +1166,20 @@ async function main() {
     }
   }
 
-  await renderSvgRasters(manifest)
+  const browserResult = await createBrowser()
+  const sharedBrowser = browserResult.error ? null : browserResult.browser
 
-  for (const markdownPath of collectMarkdownFiles()) {
-    manifest.mermaid.push(...extractMermaidBlocks(markdownPath))
+  try {
+    await renderSvgRasters(manifest, sharedBrowser)
+
+    for (const markdownPath of collectMarkdownFiles()) {
+      manifest.mermaid.push(...extractMermaidBlocks(markdownPath))
+    }
+
+    await renderMermaidBlocks(manifest, sharedBrowser)
+  } finally {
+    if (sharedBrowser) await sharedBrowser.close()
   }
-
-  await renderMermaidBlocks(manifest)
 
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
   writeAssetsReadme(manifest)
