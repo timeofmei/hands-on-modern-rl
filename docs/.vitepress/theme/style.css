@@ -19,9 +19,13 @@
   --ct-doc-line-height: 1.7;
 
   --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'PingFang SC', 'Hiragino Sans GB', 'MiSans', 'Microsoft YaHei',
+    'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display:
     -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
-    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
-    Helvetica, Arial, sans-serif;
+    'PingFang SC', 'Hiragino Sans GB', 'MiSans', 'Helvetica Neue', Arial,
+    sans-serif;
   --font-mono:
     'SF Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas',
     'Liberation Mono', 'Courier New', monospace;
@@ -115,7 +119,7 @@
    =================================================== */
 :root {
   --vp-layout-max-width: 100%;
-  --vp-sidebar-width: 272px;
+  --vp-sidebar-width: 212px;
   --vp-sidebar-nav-section-gap: 8px;
 }
 
@@ -151,45 +155,112 @@
 .VPNav {
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
-  background: rgba(255, 255, 255, 0.72) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.7))
+    !important;
   border-bottom: none;
-  box-shadow: none;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.045);
 }
 
 .dark .VPNav {
-  background: rgba(0, 0, 0, 0.72) !important;
+  background:
+    linear-gradient(180deg, rgba(14, 14, 16, 0.88), rgba(14, 14, 16, 0.68))
+    !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.055);
 }
 
 .VPNavBar {
   background: transparent !important;
 }
 
+.VPNavBar .container {
+  max-width: 100% !important;
+}
+
+.VPNavBarTitle .title {
+  padding-right: 18px;
+}
+
+.VPNavBarTitle .logo {
+  margin-right: 10px;
+  transition:
+    transform 0.2s ease,
+    filter 0.2s ease;
+}
+
+.VPNavBarTitle:hover .logo {
+  filter: saturate(1.12);
+}
+
 .VPNavBar .title {
-  font-family: var(--font-sans) !important;
-  font-weight: 600 !important;
-  letter-spacing: -0.022em;
-  font-size: 1.1rem;
+  color: #24262d !important;
+  font-family: var(--font-display) !important;
+  font-size: 1.02rem;
+  font-weight: 590 !important;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  transition:
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.VPNavBarTitle:hover .title {
+  color: var(--vp-c-brand-1) !important;
+  opacity: 0.92;
+}
+
+.dark .VPNavBar .title {
+  color: rgba(245, 245, 247, 0.92) !important;
 }
 
 .VPNavBar .content-body .nav-link > a,
 .VPNavBar .nav-bar-title {
   font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 .VPNavBarTranslations .items .nav-link a,
 .VPNavBarMenu .nav-link a {
-  font-size: 14px;
-  font-weight: 400;
-  letter-spacing: -0.01em;
-  color: var(--sidebar-text);
-  transition: color 0.2s ease;
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  color: rgba(29, 29, 31, 0.68);
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: var(--radius-full);
+  padding: 7px 13px;
 }
 
 .VPNavBarMenu .nav-link a:hover {
-  color: var(--vp-c-brand-1);
-  background: var(--vp-c-brand-soft);
+  color: rgba(29, 29, 31, 0.9);
+  background: rgba(0, 0, 0, 0.035);
+  transform: translateY(-0.5px);
+}
+
+.VPNavBarMenu .nav-link.active a,
+.VPNavBarMenu .nav-link a.active {
+  color: #3152d4;
+  background: rgba(63, 81, 181, 0.06);
+  font-weight: 540;
+}
+
+.dark .VPNavBarTranslations .items .nav-link a,
+.dark .VPNavBarMenu .nav-link a {
+  color: rgba(245, 245, 247, 0.72);
+}
+
+.dark .VPNavBarMenu .nav-link a:hover {
+  color: rgba(245, 245, 247, 0.95);
+  background: rgba(255, 255, 255, 0.085);
+}
+
+.dark .VPNavBarMenu .nav-link.active a,
+.dark .VPNavBarMenu .nav-link a.active {
+  color: #aeb8ff;
+  background: rgba(121, 134, 203, 0.15);
 }
 
 /* Social links */
@@ -410,8 +481,9 @@
 
 .DocSearch-Button .DocSearch-Button-Placeholder {
   padding: 0 8px 0 6px !important;
-  font-size: 14px !important;
+  font-size: 13.5px !important;
   font-weight: 400 !important;
+  letter-spacing: -0.004em !important;
   color: currentcolor !important;
 }
 
@@ -1215,7 +1287,7 @@ mjx-container[display='true'] {
 
 @media (min-width: 1280px) {
   .VPDoc > .container > .content {
-    padding: 0 48px 128px !important;
+    padding: 0 24px 128px !important;
   }
 }
 
@@ -1229,7 +1301,19 @@ mjx-container[display='true'] {
   }
 
   .VPDoc > .container > .content {
-    padding: 0 96px 128px !important;
+    padding: 0 48px 128px !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .VPDoc .aside {
+    max-width: 208px;
+    padding-left: 24px;
+  }
+
+  .VPDoc .aside-container,
+  .VPDoc .aside-curtain {
+    width: 184px;
   }
 }
 
@@ -1384,6 +1468,8 @@ mjx-container[display='true'] {
 
 .VPDocFooter .prev-next {
   border-top-color: rgba(0, 0, 0, 0.08);
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 }
 
 .VPDocFooter .pager-link {
@@ -1393,6 +1479,23 @@ mjx-container[display='true'] {
   background: var(--surface-secondary);
   box-shadow: none;
   padding: 16px 20px;
+  max-width: none;
+}
+
+.VPDocFooter .pager-link.prev,
+.VPDocFooter .pager-link.next {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.VPDocFooter .pager-link.next {
+  text-align: right;
+}
+
+@media (min-width: 640px) {
+  .VPDocFooter .prev-next:has(.prev):has(.next) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .VPDocFooter .pager-link:hover {

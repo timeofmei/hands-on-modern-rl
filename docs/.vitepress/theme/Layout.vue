@@ -13,7 +13,7 @@ const route = useRoute()
 const FONT_SIZE_STORAGE_KEY = 'ct-doc-font-size'
 const LINE_HEIGHT_STORAGE_KEY = 'ct-doc-line-height'
 const SIDEBAR_COLLAPSED_KEY = 'ct-sidebar-collapsed'
-const SIDEBAR_WIDTH_KEY = 'ct-sidebar-width-compact'
+const SIDEBAR_WIDTH_KEY = 'ct-sidebar-width-compact-v3'
 
 const MIN_FONT_SIZE = 15
 const MAX_FONT_SIZE = 20
@@ -22,7 +22,7 @@ const MIN_LINE_HEIGHT = 1.55
 const MAX_LINE_HEIGHT = 2
 const DEFAULT_LINE_HEIGHT = 1.75
 
-const DEFAULT_SIDEBAR_WIDTH = 272
+const DEFAULT_SIDEBAR_WIDTH = 212
 const MIN_SIDEBAR_WIDTH = 160
 const MAX_SIDEBAR_WIDTH = 520
 
@@ -1058,7 +1058,7 @@ watch(
   position: fixed;
   top: 0;
   left: calc(
-    var(--ct-sidebar-edge-right, var(--vp-sidebar-width, 272px)) - 14px
+    var(--ct-sidebar-edge-right, var(--vp-sidebar-width, 212px)) - 14px
   );
   width: 24px;
   height: 100vh;
