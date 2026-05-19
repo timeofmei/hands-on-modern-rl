@@ -198,23 +198,73 @@
 
 .VPNavBar .title {
   color: #24262d !important;
-  font-family: var(--font-display) !important;
-  font-size: 1.02rem;
-  font-weight: 590 !important;
-  letter-spacing: -0.015em;
+  font-family:
+    'SF Pro Display',
+    'SF Pro Text',
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    'PingFang SC',
+    'Helvetica Neue',
+    Arial,
+    sans-serif !important;
+  font-size: 1.08rem;
+  font-weight: 680 !important;
+  letter-spacing: -0.028em;
   line-height: 1;
+  font-optical-sizing: auto;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
   transition:
     color 0.2s ease,
     opacity 0.2s ease;
 }
 
-.VPNavBarTitle:hover .title {
-  color: var(--vp-c-brand-1) !important;
-  opacity: 0.92;
+.VPNavBar .title .ct-nav-title-accent {
+  color: var(--vp-c-brand-1);
+}
+
+.VPNavBarTitle:hover .ct-nav-title-text {
+  background-image: linear-gradient(
+    90deg,
+    #1d1d1f 0%,
+    #3152d4 28%,
+    #7c3aed 52%,
+    #0f766e 76%,
+    #1d1d1f 100%
+  );
+  background-size: 240% 100%;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: ct-nav-title-gradient 2.6s linear infinite;
+  opacity: 1;
+}
+
+.VPNavBarTitle:hover .ct-nav-title-accent {
+  color: inherit;
+}
+
+@keyframes ct-nav-title-gradient {
+  to {
+    background-position: -240% 0;
+  }
 }
 
 .dark .VPNavBar .title {
   color: rgba(245, 245, 247, 0.92) !important;
+}
+
+.dark .VPNavBarTitle:hover .ct-nav-title-text {
+  background-image: linear-gradient(
+    90deg,
+    #f5f5f7 0%,
+    #9aa8ff 30%,
+    #d8b4fe 55%,
+    #5eead4 78%,
+    #f5f5f7 100%
+  );
 }
 
 .VPNavBar .content-body .nav-link > a,

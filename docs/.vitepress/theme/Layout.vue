@@ -1,6 +1,6 @@
 <script setup>
 import DefaultTheme from 'vitepress/theme'
-import { useData, useRoute, withBase } from 'vitepress'
+import { useData, useRoute, useRouter, withBase } from 'vitepress'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   PopoverContent,
@@ -8,13 +8,15 @@ import {
   PopoverRoot,
   PopoverTrigger
 } from 'reka-ui'
+import { HandHeart, Moon, Settings, Sun } from 'lucide-vue-next'
 import ReadingProgress from './components/ReadingProgress.vue'
 import TextType from './components/TextType.vue'
 import mediumZoom from 'medium-zoom'
 import { initGithubStars } from './githubStars.js'
 
-const { frontmatter, site, theme } = useData()
+const { frontmatter, site, theme, isDark } = useData()
 const route = useRoute()
+const router = useRouter()
 
 const FONT_SIZE_STORAGE_KEY = 'ct-doc-font-size'
 const LINE_HEIGHT_STORAGE_KEY = 'ct-doc-line-height'
@@ -35,9 +37,11 @@ const MAX_SIDEBAR_WIDTH = 520
 const fontSize = ref(DEFAULT_FONT_SIZE)
 const lineHeight = ref(DEFAULT_LINE_HEIGHT)
 const readingToolsOpen = ref(false)
+const supportOpen = ref(false)
 const sidebarCollapsed = ref(false)
 const sidebarWidth = ref(DEFAULT_SIDEBAR_WIDTH)
 const sidebarResizing = ref(false)
+const routeLoading = ref(false)
 
 const mermaidViewerOpen = ref(false)
 const mermaidViewerSrc = ref('')
@@ -79,6 +83,53 @@ const mobileAlternateLanguageLink = computed(() => {
     mobileRoutePath.value === '/' ? '/en/' : `/en${mobileRoutePath.value}`
   return withBase(enPath)
 })
+const supportButtonLabel = computed(() =>
+  isEnglishRoute.value ? 'Give the creator a like' : '给制作者一个赞吧'
+)
+const settingsButtonLabel = computed(() =>
+  isEnglishRoute.value ? 'Reading and appearance settings' : '阅读与外观设置'
+)
+const supportNote = computed(() =>
+  isEnglishRoute.value
+    ? 'Thanks for following this project. Sharing it or joining the discussion is welcome; your attention is the greatest support.'
+    : '感谢关注项目，欢迎帮忙宣传或者一起交流，你的关注就是最大的支持。'
+)
+const supportQrLabel = computed(() =>
+  isEnglishRoute.value
+    ? 'Official account / community QR code'
+    : '公众号 / 社群二维码'
+)
+const readingToolsCopy = computed(() =>
+  isEnglishRoute.value
+    ? {
+        appearance: 'Appearance',
+        light: 'Light',
+        dark: 'Dark',
+        fontSize: 'Font size',
+        lineHeight: 'Line height',
+        decreaseFont: 'A-',
+        increaseFont: 'A+',
+        default: 'Default',
+        tighter: 'Tighter',
+        looser: 'Looser',
+        switchLight: 'Switch to light mode',
+        switchDark: 'Switch to dark mode'
+      }
+    : {
+        appearance: '外观',
+        light: '浅色',
+        dark: '深色',
+        fontSize: '字号',
+        lineHeight: '行距',
+        decreaseFont: 'A-',
+        increaseFont: 'A+',
+        default: '默认',
+        tighter: '更紧',
+        looser: '更松',
+        switchLight: '切换到浅色模式',
+        switchDark: '切换到深色模式'
+      }
+)
 const homeTypingText = computed(
   () =>
     frontmatter.value.hero?.typingTagline ||
@@ -90,6 +141,7 @@ let sidebarResizeLeft = 0
 let outlineObserver = null
 let sidebarObserver = null
 let navigationSyncTimer = null
+let routeLoadingTimer = null
 let zoom = null
 let mermaidViewerDragState = null
 
@@ -215,6 +267,26 @@ function toggleSidebar() {
 
 function closeReadingTools() {
   readingToolsOpen.value = false
+}
+
+function closeSupportPanel() {
+  supportOpen.value = false
+}
+
+function setAppearance(dark) {
+  isDark.value = dark
+}
+
+function showRouteLoading() {
+  window.clearTimeout(routeLoadingTimer)
+  routeLoadingTimer = window.setTimeout(() => {
+    routeLoading.value = true
+  }, 120)
+}
+
+function hideRouteLoading() {
+  window.clearTimeout(routeLoadingTimer)
+  routeLoading.value = false
 }
 
 function clampMermaidViewerScale(value) {
@@ -510,6 +582,7 @@ function handleWindowKeydown(event) {
 
   if (event.key === 'Escape') {
     closeReadingTools()
+    closeSupportPanel()
   }
 }
 
@@ -584,6 +657,21 @@ function initMediumZoom() {
 
 function renderSidebarKatex() {
   // no-op: sidebar labels are plain text
+}
+
+function enhanceNavTitle() {
+  if (typeof document === 'undefined') return
+  const title = document.querySelector('.VPNavBar .title')
+  const titleText = title?.querySelector('span:last-of-type')
+  if (!titleText || titleText.dataset.ctEnhancedTitle === 'true') return
+
+  const text = titleText.textContent?.trim()
+  if (text !== 'Hands on Modern RL') return
+
+  titleText.dataset.ctEnhancedTitle = 'true'
+  titleText.classList.add('ct-nav-title-text')
+  titleText.innerHTML =
+    '<span class="ct-nav-title-main">Hands on </span><span class="ct-nav-title-accent">Modern RL</span>'
 }
 
 function initNavigationSync() {
@@ -671,8 +759,17 @@ onMounted(() => {
   updateSidebarEdgePosition()
   initMediumZoom()
   initMermaidViewer()
+  enhanceNavTitle()
   renderSidebarKatex()
   initGithubStars(theme)
+
+  router.onBeforeRouteChange = () => {
+    showRouteLoading()
+  }
+
+  router.onAfterRouteChanged = () => {
+    hideRouteLoading()
+  }
 })
 
 onBeforeUnmount(() => {
@@ -680,6 +777,9 @@ onBeforeUnmount(() => {
   cleanupNavigationSync()
   cleanupMermaidViewer()
   closeMermaidViewer()
+  hideRouteLoading()
+  router.onBeforeRouteChange = undefined
+  router.onAfterRouteChanged = undefined
   window.removeEventListener('resize', handleViewportResize)
   window.removeEventListener('keydown', handleWindowKeydown)
 })
@@ -707,6 +807,14 @@ watch(sidebarCollapsed, (collapsed) => {
   window.requestAnimationFrame(updateSidebarEdgePosition)
 })
 
+watch(readingToolsOpen, (open) => {
+  if (open) supportOpen.value = false
+})
+
+watch(supportOpen, (open) => {
+  if (open) readingToolsOpen.value = false
+})
+
 watch(
   () => route.path,
   async () => {
@@ -714,6 +822,7 @@ watch(
     initNavigationSync()
     initMediumZoom()
     initMermaidViewer()
+    enhanceNavTitle()
     renderSidebarKatex()
     window.requestAnimationFrame(updateSidebarEdgePosition)
   }
@@ -723,15 +832,15 @@ watch(
 <template>
   <DefaultTheme.Layout>
     <template v-if="showDocChrome" #nav-bar-content-after>
-      <div class="ct-reading-tools">
+      <div class="ct-nav-tools">
         <PopoverRoot v-model:open="readingToolsOpen">
           <PopoverTrigger as-child>
             <button
-              class="ct-reading-tools-button"
+              class="ct-nav-tool-button"
               type="button"
-              aria-label="阅读设置"
+              :aria-label="settingsButtonLabel"
             >
-              <span>Aa</span>
+              <Settings :size="18" :stroke-width="2" aria-hidden="true" />
             </button>
           </PopoverTrigger>
 
@@ -745,7 +854,46 @@ watch(
               >
                 <div class="ct-reading-tools-group">
                   <div class="ct-reading-tools-header">
-                    <div class="ct-reading-tools-title">字号</div>
+                    <div class="ct-reading-tools-title">
+                      {{ readingToolsCopy.appearance }}
+                    </div>
+                    <div class="ct-reading-tools-value">
+                      {{
+                        isDark ? readingToolsCopy.dark : readingToolsCopy.light
+                      }}
+                    </div>
+                  </div>
+                  <div
+                    class="ct-appearance-toggle"
+                    role="group"
+                    :aria-label="readingToolsCopy.appearance"
+                  >
+                    <button
+                      class="ct-reading-tools-action"
+                      :class="{ active: !isDark }"
+                      type="button"
+                      :aria-label="readingToolsCopy.switchLight"
+                      @click="setAppearance(false)"
+                    >
+                      <Sun :size="18" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                    <button
+                      class="ct-reading-tools-action"
+                      :class="{ active: isDark }"
+                      type="button"
+                      :aria-label="readingToolsCopy.switchDark"
+                      @click="setAppearance(true)"
+                    >
+                      <Moon :size="18" :stroke-width="2" aria-hidden="true" />
+                    </button>
+                  </div>
+                </div>
+
+                <div class="ct-reading-tools-group">
+                  <div class="ct-reading-tools-header">
+                    <div class="ct-reading-tools-title">
+                      {{ readingToolsCopy.fontSize }}
+                    </div>
                     <div class="ct-reading-tools-value">{{ fontSize }}px</div>
                   </div>
                   <div class="ct-reading-tools-actions">
@@ -754,21 +902,21 @@ watch(
                       type="button"
                       @click="decreaseFontSize"
                     >
-                      A-
+                      {{ readingToolsCopy.decreaseFont }}
                     </button>
                     <button
                       class="ct-reading-tools-action"
                       type="button"
                       @click="resetFontSize"
                     >
-                      默认
+                      {{ readingToolsCopy.default }}
                     </button>
                     <button
                       class="ct-reading-tools-action"
                       type="button"
                       @click="increaseFontSize"
                     >
-                      A+
+                      {{ readingToolsCopy.increaseFont }}
                     </button>
                   </div>
                   <input
@@ -783,7 +931,9 @@ watch(
 
                 <div class="ct-reading-tools-group">
                   <div class="ct-reading-tools-header">
-                    <div class="ct-reading-tools-title">行距</div>
+                    <div class="ct-reading-tools-title">
+                      {{ readingToolsCopy.lineHeight }}
+                    </div>
                     <div class="ct-reading-tools-value">
                       {{ lineHeight.toFixed(2) }}
                     </div>
@@ -794,21 +944,21 @@ watch(
                       type="button"
                       @click="lineHeight = clampLineHeight(lineHeight - 0.05)"
                     >
-                      更紧
+                      {{ readingToolsCopy.tighter }}
                     </button>
                     <button
                       class="ct-reading-tools-action"
                       type="button"
                       @click="resetLineHeight"
                     >
-                      默认
+                      {{ readingToolsCopy.default }}
                     </button>
                     <button
                       class="ct-reading-tools-action"
                       type="button"
                       @click="lineHeight = clampLineHeight(lineHeight + 0.05)"
                     >
-                      更松
+                      {{ readingToolsCopy.looser }}
                     </button>
                   </div>
                   <input
@@ -820,6 +970,52 @@ watch(
                     step="0.05"
                   />
                 </div>
+              </PopoverContent>
+            </Transition>
+          </PopoverPortal>
+        </PopoverRoot>
+
+        <PopoverRoot v-model:open="supportOpen">
+          <PopoverTrigger as-child>
+            <button
+              class="ct-nav-tool-button"
+              type="button"
+              :aria-label="supportButtonLabel"
+              :title="supportButtonLabel"
+            >
+              <HandHeart :size="18" :stroke-width="2" aria-hidden="true" />
+            </button>
+          </PopoverTrigger>
+
+          <PopoverPortal>
+            <Transition name="ct-reading-tools-fade">
+              <PopoverContent
+                class="ct-support-panel"
+                :side-offset="10"
+                align="end"
+                side="bottom"
+              >
+                <a
+                  class="ct-support-link"
+                  href="https://github.com/walkinglabs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span>WalkingLab</span>
+                  <span>GitHub</span>
+                </a>
+                <div class="ct-support-qr-card">
+                  <img
+                    src="https://github.com/walkinglabs/.github/raw/main/profile/wechat.png"
+                    alt="WalkingLab 微信二维码"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div>{{ supportQrLabel }}</div>
+                </div>
+                <p class="ct-support-note">
+                  {{ supportNote }}
+                </p>
               </PopoverContent>
             </Transition>
           </PopoverPortal>
@@ -901,6 +1097,15 @@ watch(
   </ClientOnly>
 
   <ClientOnly>
+    <Transition name="ct-route-loading-fade">
+      <div v-if="routeLoading" class="ct-route-loading" aria-live="polite">
+        <span class="ct-route-loading-spinner" aria-hidden="true"></span>
+        <span class="ct-route-loading-text">加载中</span>
+      </div>
+    </Transition>
+  </ClientOnly>
+
+  <ClientOnly>
     <Teleport to="body">
       <div
         v-if="mermaidViewerOpen"
@@ -944,7 +1149,6 @@ watch(
           ref="mermaidViewerScroll"
           class="ct-mermaid-viewer-scroll"
           :class="{ 'is-dragging': mermaidViewerDragging }"
-          @click.self="closeMermaidViewer"
           @pointerdown="handleMermaidViewerPointerDown"
           @pointermove="handleMermaidViewerPointerMove"
           @pointerup="stopMermaidViewerDrag"
@@ -952,11 +1156,7 @@ watch(
           @pointerleave="stopMermaidViewerDrag"
           @wheel="handleMermaidViewerWheel"
         >
-          <div
-            class="ct-mermaid-viewer-stage"
-            :style="mermaidViewerStageStyle"
-            @click.self="closeMermaidViewer"
-          >
+          <div class="ct-mermaid-viewer-stage" :style="mermaidViewerStageStyle">
             <img
               class="ct-mermaid-viewer-image"
               :src="mermaidViewerSrc"
@@ -973,12 +1173,23 @@ watch(
 </template>
 
 <style>
-.ct-reading-tools {
+.ct-nav-tools {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   margin-left: 6px;
 }
 
-.ct-reading-tools-button {
+.VPNavBar .ct-nav-tools {
+  order: 21;
+}
+
+.VPNavBar .appearance {
+  display: none;
+}
+
+.ct-nav-tool-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1000,8 +1211,9 @@ watch(
     border-color 0.18s ease;
 }
 
-.ct-reading-tools-button:hover,
-.ct-reading-tools-button:focus-visible {
+.ct-nav-tool-button:hover,
+.ct-nav-tool-button:focus-visible,
+.ct-nav-tool-button[data-state='open'] {
   border-color: rgba(0, 0, 0, 0.05);
   background: rgba(0, 0, 0, 0.04);
   color: rgba(29, 29, 31, 0.82);
@@ -1074,9 +1286,87 @@ watch(
   color: var(--vp-c-brand-1);
 }
 
+.ct-reading-tools-action.active {
+  border-color: rgba(63, 81, 181, 0.36);
+  background: rgba(63, 81, 181, 0.1);
+  color: var(--vp-c-brand-1);
+  font-weight: 700;
+}
+
+.ct-appearance-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
 .ct-reading-tools-range {
   width: 100%;
   accent-color: var(--vp-c-brand-1);
+}
+
+.ct-support-panel {
+  width: 220px;
+  padding: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  z-index: 40;
+}
+
+.ct-support-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  color: var(--vp-c-text-1);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.ct-support-link span:last-child {
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ct-support-link:hover {
+  border-color: rgba(15, 118, 110, 0.32);
+  background: rgba(63, 81, 181, 0.06);
+  color: var(--vp-c-brand-1);
+}
+
+.ct-support-qr-card {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+  text-align: center;
+}
+
+.ct-support-qr-card img {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.ct-support-note {
+  margin: 10px 0 0;
+  color: var(--vp-c-text-2);
+  font-size: 12px;
+  line-height: 1.65;
 }
 
 .ct-reading-tools-fade-enter-active,
@@ -1090,6 +1380,68 @@ watch(
 .ct-reading-tools-fade-leave-to {
   opacity: 0;
   transform: translateY(-6px);
+}
+
+.ct-route-loading {
+  position: fixed;
+  top: calc(var(--vp-nav-height, 64px) + 14px);
+  left: 50%;
+  z-index: 80;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(63, 81, 181, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(29, 29, 31, 0.72);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateX(-50%);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  backdrop-filter: saturate(180%) blur(16px);
+}
+
+.ct-route-loading-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(63, 81, 181, 0.18);
+  border-top-color: var(--vp-c-brand-1);
+  border-radius: 50%;
+  animation: ct-route-loading-spin 0.72s linear infinite;
+}
+
+.ct-route-loading-fade-enter-active,
+.ct-route-loading-fade-leave-active {
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.ct-route-loading-fade-enter-from,
+.ct-route-loading-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -6px);
+}
+
+.dark .ct-route-loading {
+  border-color: rgba(154, 168, 255, 0.18);
+  background: rgba(24, 24, 27, 0.88);
+  color: rgba(245, 245, 247, 0.76);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+}
+
+.dark .ct-route-loading-spinner {
+  border-color: rgba(154, 168, 255, 0.22);
+  border-top-color: #9aa8ff;
+}
+
+@keyframes ct-route-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .ct-mobile-language-switcher {
@@ -1234,23 +1586,25 @@ watch(
   transition: none !important;
 }
 
-.dark .ct-reading-tools-button,
+.dark .ct-nav-tool-button,
 .dark .ct-reading-tools-panel,
+.dark .ct-support-panel,
 .dark .ct-sidebar-toggle-btn {
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(30, 30, 40, 0.92);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
-.dark .ct-reading-tools-button {
+.dark .ct-nav-tool-button {
   border-color: transparent;
   background: transparent;
   color: rgba(245, 245, 247, 0.58);
   box-shadow: none;
 }
 
-.dark .ct-reading-tools-button:hover,
-.dark .ct-reading-tools-button:focus-visible {
+.dark .ct-nav-tool-button:hover,
+.dark .ct-nav-tool-button:focus-visible,
+.dark .ct-nav-tool-button[data-state='open'] {
   border-color: rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.08);
   color: rgba(245, 245, 247, 0.84);
@@ -1259,6 +1613,16 @@ watch(
 .dark .ct-reading-tools-action {
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.dark .ct-reading-tools-action.active {
+  border-color: rgba(154, 168, 255, 0.34);
+  background: rgba(154, 168, 255, 0.12);
+}
+
+.dark .ct-support-link,
+.dark .ct-support-qr-card img {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 @media (min-width: 960px) {
@@ -1350,10 +1714,11 @@ watch(
 }
 
 @media (max-width: 768px) {
-  .ct-reading-tools {
+  .ct-nav-tools {
     margin-left: 4px;
   }
 
+  .ct-support-panel,
   .ct-reading-tools-panel {
     right: -6px;
     width: min(280px, calc(100vw - 24px));
