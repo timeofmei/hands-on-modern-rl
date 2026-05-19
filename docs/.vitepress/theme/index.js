@@ -15,12 +15,9 @@ const Mermaid = defineAsyncComponent(
 )
 
 function loadFonts() {
+  // Apple 风格：使用系统原生字体，不加载外部字体
+  // SF Pro / PingFang SC / Hiragino Sans GB 等系统字体已足够精美
   if (typeof document === 'undefined') return
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href =
-    'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap'
-  document.head.appendChild(link)
 }
 
 export default {

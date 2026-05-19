@@ -518,12 +518,12 @@ function optimizedMermaidPlugin(md) {
 }
 
 const zhNav = [
-  { text: '前言与导论', link: '/preface/intro' },
-  { text: '基础导论', link: '/chapter01_cartpole/intro' },
-  { text: '核心理论与方法', link: '/chapter03_mdp/intro' },
-  { text: '大模型强化学习', link: '/chapter08_rlhf/intro' },
+  { text: '预备知识', link: '/preface/intro' },
+  { text: '入门实战', link: '/chapter01_cartpole/intro' },
+  { text: '经典方法', link: '/chapter03_mdp/intro' },
+  { text: '大模型对齐', link: '/chapter08_rlhf/intro' },
   {
-    text: '前沿与进阶专题',
+    text: '前沿专题',
     link: '/chapter11_vlm_rl/intro'
   }
 ]
@@ -1892,7 +1892,7 @@ export default defineConfig({
   },
   themeConfig: {
     logo: '/readme/logo-symbol.svg',
-    siteTitle: 'Hands-on Modern RL',
+    siteTitle: 'Hands on Modern RL',
     nav: zhNav,
     sidebar: zhSidebar,
     socialLinks: [
@@ -1916,7 +1916,7 @@ export default defineConfig({
     },
     outline: {
       level: [2, 3],
-      label: 'Outline'
+      label: '本页目录'
     }
   }
 })

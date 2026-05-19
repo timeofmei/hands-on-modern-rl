@@ -1,229 +1,647 @@
 /* ===================================================
-   d2l-zh inspired theme for VitePress
-   参考: 动手学深度学习 (zh.d2l.ai)
+   Modern RL Course Theme — Apple Design Language
+   设计方向：极简留白、精致排版、去装饰化、沉浸式阅读
+   保留原主色调：Indigo (#3f51b5)
    =================================================== */
 
-/* ---- Brand & Colors (d2l: Material Design blue) ---- */
+/* ===================================================
+   1. Design Tokens / CSS Variables
+   =================================================== */
 :root {
+  /* ---- Brand Colors: 保留原 Indigo 主色调 ---- */
   --vp-c-brand-1: #3f51b5;
   --vp-c-brand-2: #3949ab;
   --vp-c-brand-3: #303f9f;
-  --vp-c-brand-soft: rgba(63, 81, 181, 0.14);
-  --ct-doc-font-size: 15.5px;
-  --ct-doc-line-height: 1.82;
+  --vp-c-brand-soft: rgba(63, 81, 181, 0.06);
 
-  /* d2l-zh font stack */
-  --d2l-font-sans:
-    Roboto, 'Noto Sans SC', system-ui, -apple-system, 'PingFang SC',
-    'Microsoft YaHei', sans-serif;
-  --d2l-font-mono:
-    Menlo, 'DejaVu Sans Mono', 'Liberation Mono', Consolas, 'Ubuntu Mono',
-    'Courier New', monospace;
+  /* ---- Typography: Apple 风格字体栈 ---- */
+  --ct-doc-font-size: 17px;
+  --ct-doc-line-height: 1.7;
 
-  /* Override VitePress default font to d2l style */
-  --vp-font-family-base: var(--d2l-font-sans);
-  --vp-font-family-mono: var(--d2l-font-mono);
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
+    Helvetica, Arial, sans-serif;
+  --font-mono:
+    'SF Mono', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas',
+    'Liberation Mono', 'Courier New', monospace;
+
+  --vp-font-family-base: var(--font-sans);
+  --vp-font-family-mono: var(--font-mono);
+
+  /* ---- Hero Gradients (Apple 风格：极柔和、朦胧光晕) ---- */
   --vp-home-hero-name-background: linear-gradient(
-    120deg,
-    #1a237e 10%,
-    #3f51b5 55%,
+    180deg,
+    #1a237e 0%,
+    #3f51b5 50%,
     #7986cb 100%
   );
   --vp-home-hero-image-background-image:
     radial-gradient(
-      circle at 30% 30%,
-      rgba(63, 81, 181, 0.28),
-      transparent 38%
+      ellipse 80% 50% at 50% 20%,
+      rgba(63, 81, 181, 0.06),
+      transparent 70%
     ),
     radial-gradient(
-      circle at 70% 35%,
-      rgba(121, 134, 203, 0.22),
-      transparent 44%
+      ellipse 50% 40% at 70% 80%,
+      rgba(121, 134, 203, 0.04),
+      transparent 60%
     );
-  --vp-home-hero-image-filter: blur(52px);
+  --vp-home-hero-image-filter: blur(100px);
 
-  /* d2l-inspired surface colors */
-  --d2l-sidebar-bg: #fafafa;
-  --d2l-sidebar-text: #757575;
-  --d2l-sidebar-active: #212121;
-  --d2l-sidebar-hover-bg: rgba(0, 0, 0, 0.04);
-  --d2l-sidebar-border: rgba(0, 0, 0, 0.06);
-  --d2l-code-bg: rgba(0, 0, 0, 0.05);
-  --d2l-code-text: rgba(0, 0, 0, 0.87);
-  --d2l-blockquote-border: rgba(0, 0, 0, 0.05);
-  --d2l-admonition-note: #00bcd4;
-  --d2l-admonition-tip: #8bc34a;
-  --d2l-admonition-warning: #ffc107;
-  --d2l-admonition-danger: #f44336;
+  /* ---- Apple 风格 Surface Colors ---- */
+  --surface-primary: #ffffff;
+  --surface-secondary: #f5f5f7;
+  --surface-tertiary: #fafafa;
+  --surface-quaternary: #f0f0f2;
+
+  --sidebar-bg: var(--surface-secondary);
+  --sidebar-text: #86868b;
+  --sidebar-active: #1d1d1f;
+  --sidebar-hover-bg: rgba(63, 81, 181, 0.04);
+  --sidebar-border: rgba(0, 0, 0, 0.04);
+
+  --code-bg: rgba(63, 81, 181, 0.05);
+  --code-text: #1d1d1f;
+  --blockquote-border: rgba(0, 0, 0, 0.08);
+
+  /* ---- Apple 风格 Admonition Colors (更克制) ---- */
+  --adm-note: #0071e3;
+  --adm-tip: #34c759;
+  --adm-warning: #ff9500;
+  --adm-danger: #ff3b30;
+
+  /* ---- Apple 风格 Shadows (极淡、极自然) ---- */
+  --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --shadow-heavy: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --shadow-brand: 0 2px 8px rgba(63, 81, 181, 0.15);
+
+  /* ---- Apple 风格 Border Radius (克制、优雅) ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+}
+
+/* ---- Dark Mode Overrides ---- */
+.dark {
+  --surface-primary: #000000;
+  --surface-secondary: #1c1c1e;
+  --surface-tertiary: #2c2c2e;
+  --surface-quaternary: #3a3a3c;
+
+  --sidebar-bg: var(--surface-secondary);
+  --sidebar-text: #98989d;
+  --sidebar-active: #f5f5f7;
+  --sidebar-hover-bg: rgba(63, 81, 181, 0.08);
+  --sidebar-border: rgba(255, 255, 255, 0.04);
+
+  --code-bg: rgba(63, 81, 181, 0.1);
+  --code-text: #f5f5f7;
+  --blockquote-border: rgba(255, 255, 255, 0.08);
+}
+
+.dark .VPSidebar {
+  background-color: var(--sidebar-bg) !important;
+  border-right-color: var(--sidebar-border);
+}
+
+/* ===================================================
+   2. Global & Layout
+   =================================================== */
+:root {
+  --vp-layout-max-width: 100%;
+  --vp-sidebar-width: 272px;
+  --vp-sidebar-nav-section-gap: 8px;
 }
 
 /* ---- Homepage ---- */
 .VPHome {
-  background: #fafafa;
+  background: var(--surface-primary);
 }
 
-.VPFeature {
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 2px;
-  background: #fff;
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+.dark .VPHome {
+  background: var(--surface-primary);
 }
 
-.VPButton.brand {
-  box-shadow:
-    0 2px 2px 0 rgba(63, 81, 181, 0.2),
-    0 3px 1px -2px rgba(63, 81, 181, 0.25),
-    0 1px 5px 0 rgba(63, 81, 181, 0.15);
+/* ---- 页面内容区背景层次 ---- */
+.VPDoc {
+  background: linear-gradient(
+    180deg,
+    rgba(63, 81, 181, 0.02) 0%,
+    transparent 400px
+  );
+}
+
+.dark .VPDoc {
+  background: linear-gradient(
+    180deg,
+    rgba(63, 81, 181, 0.03) 0%,
+    transparent 400px
+  );
 }
 
 /* ===================================================
-   Navigation Bar (参考 d2l 顶部导航栏)
+   3. Navigation Bar (Apple 风格：极简、去线化)
    =================================================== */
 .VPNav {
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-bottom: none;
+  box-shadow: none;
+}
+
+.dark .VPNav {
+  background: rgba(0, 0, 0, 0.72) !important;
 }
 
 .VPNavBar {
-  background: var(--vp-c-bg) !important;
+  background: transparent !important;
 }
 
 .VPNavBar .title {
-  font-family: var(--d2l-font-sans) !important;
-  font-weight: 700 !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.022em;
+  font-size: 1.1rem;
 }
 
 .VPNavBar .content-body .nav-link > a,
 .VPNavBar .nav-bar-title {
-  font-family: var(--d2l-font-sans);
+  font-family: var(--font-sans);
 }
 
 .VPNavBarTranslations .items .nav-link a,
 .VPNavBarMenu .nav-link a {
   font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.3px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--sidebar-text);
+  transition: color 0.2s ease;
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
 }
 
 .VPNavBarMenu .nav-link a:hover {
   color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
 }
 
 /* Social links */
 .VPNavBarSocialLinks .social-link {
-  transition:
-    color 0.2s ease,
-    background-color 0.2s ease;
+  transition: all 0.2s ease;
+  border-radius: var(--radius-md);
+  padding: 8px;
+  color: #86868b;
 }
 
 .VPNavBarSocialLinks .social-link:hover {
   color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+}
+
+.VPNavBar .content-body {
+  column-gap: 4px;
+}
+
+.VPNavBar .translations {
+  order: 20;
+}
+
+.VPNavBar .ct-reading-tools {
+  order: 21;
+}
+
+.VPNavBar .appearance {
+  order: 22;
+}
+
+.VPNavBar .social-links {
+  order: 23;
+}
+
+.VPNavBar .extra,
+.VPNavBar .hamburger {
+  order: 30;
+}
+
+.VPNavBar .VPFlyout .button {
+  height: 34px;
+  min-width: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  color: rgba(29, 29, 31, 0.62);
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.VPNavBar .VPFlyout .button:hover,
+.VPNavBar .VPFlyout .button[aria-expanded='true'] {
+  border-color: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(29, 29, 31, 0.82);
+}
+
+.VPNavBar .VPFlyout .text {
+  height: 34px;
+  line-height: 34px;
+  color: currentcolor;
+}
+
+.VPNavBar .VPFlyout .option-icon {
+  font-size: 17px;
+}
+
+.VPNavBar .VPFlyout .text-icon {
+  margin-left: 5px;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.VPNavBarAppearance {
+  height: 34px;
+  padding: 0 4px;
+  border-radius: var(--radius-full);
+}
+
+.VPNavBarAppearance .VPSwitchAppearance {
+  width: 46px;
+  height: 26px;
+  border-color: rgba(0, 0, 0, 0.12);
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.VPNavBarAppearance .VPSwitchAppearance:hover {
+  border-color: rgba(0, 0, 0, 0.16);
+}
+
+.VPNavBarAppearance .VPSwitchAppearance .check {
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.VPNavBarAppearance .VPSwitchAppearance .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.dark .VPNavBarAppearance .VPSwitchAppearance .check {
+  transform: translateX(20px);
+}
+
+.VPNavBarAppearance .VPSwitchAppearance .icon [class^='vpi-'] {
+  top: 4px;
+  left: 4px;
+}
+
+.VPNavBarSocialLinks .VPSocialLink {
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  color: rgba(29, 29, 31, 0.62);
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.VPNavBarSocialLinks .VPSocialLink:hover {
+  border-color: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(29, 29, 31, 0.82);
+}
+
+.VPNavBarSocialLinks .VPSocialLink[href*='github.com'] {
+  width: auto !important;
+  gap: 6px !important;
+  padding: 0 9px !important;
+}
+
+.VPNavBarSocialLinks .VPSocialLink[href*='github.com'] > [class^='vpi-social-'] {
+  width: 19px;
+  height: 19px;
+}
+
+.VPNavBarSocialLinks .ct-github-stars {
+  color: currentcolor;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  line-height: 1;
+  opacity: 0.88;
+}
+
+.dark .VPNavBar .VPFlyout .button,
+.dark .VPNavBarSocialLinks .VPSocialLink {
+  color: rgba(245, 245, 247, 0.62);
+}
+
+.dark .VPNavBar .VPFlyout .button:hover,
+.dark .VPNavBar .VPFlyout .button[aria-expanded='true'],
+.dark .VPNavBarSocialLinks .VPSocialLink:hover {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 245, 247, 0.84);
+}
+
+.dark .VPNavBarAppearance .VPSwitchAppearance {
+  border-color: rgba(255, 255, 255, 0.12);
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.VPNavBar .menu + .translations::before,
+.VPNavBar .menu + .appearance::before,
+.VPNavBar .menu + .social-links::before,
+.VPNavBar .translations + .appearance::before,
+.VPNavBar .appearance + .social-links::before {
+  display: none !important;
+}
+
+.VPNavBar .divider-line {
+  background-color: transparent !important;
+}
+
+.VPNavBarTitle.has-sidebar .title {
+  border-bottom-color: transparent !important;
+}
+
+/* Local search: keep it available without competing with reading. */
+.DocSearch-Button {
+  height: 34px !important;
+  min-width: 0 !important;
+  margin: 0 4px 0 0 !important;
+  padding: 0 9px !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--radius-full) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(29, 29, 31, 0.54) !important;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.DocSearch-Button:hover,
+.DocSearch-Button:focus-visible {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+  color: rgba(29, 29, 31, 0.78) !important;
+}
+
+.DocSearch-Button .DocSearch-Search-Icon {
+  width: 18px;
+  height: 18px;
+  color: currentcolor;
+}
+
+.DocSearch-Button .DocSearch-Button-Placeholder {
+  padding: 0 8px 0 6px !important;
+  font-size: 14px !important;
+  font-weight: 400 !important;
+  color: currentcolor !important;
+}
+
+.DocSearch-Button .DocSearch-Button-Keys {
+  min-width: 0;
+  padding: 0;
+}
+
+.DocSearch-Button .DocSearch-Button-Key {
+  top: 0 !important;
+  width: auto !important;
+  min-width: 22px;
+  height: 22px !important;
+  margin-right: 0 !important;
+  padding: 0 6px !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-radius: var(--radius-sm) !important;
+  background: rgba(255, 255, 255, 0.42) !important;
+  box-shadow: none !important;
+  color: rgba(29, 29, 31, 0.45) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 12px !important;
+}
+
+.dark .DocSearch-Button {
+  color: rgba(245, 245, 247, 0.5) !important;
+}
+
+.dark .DocSearch-Button:hover,
+.dark .DocSearch-Button:focus-visible {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(245, 245, 247, 0.82) !important;
+}
+
+.dark .DocSearch-Button .DocSearch-Button-Key {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(245, 245, 247, 0.45) !important;
+}
+
+@media (max-width: 768px) {
+  .DocSearch-Button {
+    width: 34px !important;
+    padding: 0 !important;
+    justify-content: center;
+  }
+
+  .DocSearch-Button .DocSearch-Button-Placeholder,
+  .DocSearch-Button .DocSearch-Button-Keys {
+    display: none !important;
+  }
 }
 
 /* ===================================================
-   Sidebar (参考 d2l 侧边目录栏)
+   4. Sidebar (Easy-Vibe compact book navigation)
    =================================================== */
 .VPSidebar {
-  background-color: var(--d2l-sidebar-bg) !important;
-  border-right: 1px solid var(--d2l-sidebar-border);
-  font-family: var(--d2l-font-sans);
-}
-
-.dark .VPSidebar {
-  --d2l-sidebar-bg: var(--vp-c-bg);
-  --d2l-sidebar-text: #9e9e9e;
-  --d2l-sidebar-active: #e0e0e0;
-  --d2l-sidebar-hover-bg: rgba(255, 255, 255, 0.04);
-  --d2l-sidebar-border: rgba(255, 255, 255, 0.08);
-  background-color: var(--d2l-sidebar-bg) !important;
-  border-right-color: var(--d2l-sidebar-border);
+  background-color: var(--sidebar-bg) !important;
+  border-right: 1px solid var(--sidebar-border);
+  font-family: var(--font-sans);
 }
 
 /* Sidebar scrollbar */
 .VPSidebar::-webkit-scrollbar {
-  width: 6px;
+  width: 3px;
 }
 
 .VPSidebar::-webkit-scrollbar-track {
-  border-radius: 6px;
+  background: transparent;
 }
 
 .VPSidebar::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.3);
-  border-radius: 6px;
-  box-shadow: 0 0 0 1px hsla(0, 0%, 100%, 0.3);
+  background-color: rgba(134, 134, 139, 0.2);
+  border-radius: var(--radius-full);
 }
 
 .dark .VPSidebar::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(152, 152, 157, 0.15);
 }
 
-/* Remove default separators between sidebar groups for a cleaner book TOC. */
-.VPSidebar .group {
-  padding-top: 2px !important;
-}
-
-.VPSidebar .group + .group {
-  border-top: 0 !important;
-  padding-top: 0 !important;
-}
-
-.VPSidebar .VPSidebarItem.level-0 {
-  padding-bottom: 10px !important;
-}
-
-.VPSidebar .VPSidebarItem.collapsed.level-0 {
+:where(html) .VPSidebar .group,
+:where(html) .VPSidebarGroup,
+:where(html) .VPSidebarGroup[data-v-8d50c081] {
+  padding-top: 6px !important;
   padding-bottom: 6px !important;
 }
 
-/* Sidebar items */
-.VPSidebar .group-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--d2l-sidebar-text);
+:where(html) .VPSidebar .group + .group {
+  border-top: 1px solid rgba(0, 0, 0, 0.06) !important;
+  margin-top: 6px !important;
+  padding-top: 10px !important;
 }
 
-.VPSidebar .item .link {
-  color: var(--d2l-sidebar-text) !important;
+.dark :where(html) .VPSidebar .group + .group {
+  border-top-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+:where(html) .VPSidebar .group-title {
+  padding: 0 18px 8px !important;
+  color: #2f3137;
   font-size: 0.9rem;
-  min-height: 36px;
+  font-weight: 700;
+  line-height: 1.3 !important;
+  letter-spacing: 0;
+}
+
+.dark :where(html) .VPSidebar .group-title {
+  color: #f5f5f7;
+}
+
+:where(html) .VPSidebarItem.level-0,
+:where(html) .VPSidebarItem.level-0[data-v-d81de50c] {
+  padding-bottom: 8px !important;
+}
+
+:where(html) .VPSidebarItem.level-0 > .item,
+:where(html) .VPSidebarItem.level-0[data-v-d81de50c] > .item {
+  padding-bottom: 4px !important;
+}
+
+:where(html) .VPSidebarItem.level-0 + .VPSidebarItem.level-1,
+:where(html)
+  .VPSidebarItem.level-0[data-v-d81de50c]
+  + .VPSidebarItem.level-1[data-v-d81de50c] {
+  margin-top: -2px !important;
+}
+
+:where(html) .VPSidebarItem.level-1 .item,
+:where(html) .VPSidebarItem.level-1[data-v-d81de50c] .item,
+:where(html) .VPSidebarItem.level-2 .item,
+:where(html) .VPSidebarItem.level-2[data-v-d81de50c] .item,
+:where(html) .VPSidebarItem.level-3 .item,
+:where(html) .VPSidebarItem.level-3[data-v-d81de50c] .item,
+:where(html) .VPSidebarItem.level-4 .item,
+:where(html) .VPSidebarItem.level-4[data-v-d81de50c] .item {
+  min-height: 26px !important;
+  padding-top: 3px !important;
+  padding-bottom: 3px !important;
+}
+
+:where(html) .VPSidebarItem .item,
+:where(html) .VPSidebarItem[data-v-d81de50c] .item {
+  margin-bottom: 0 !important;
+}
+
+:where(html) .VPSidebarItem .link,
+:where(html) .VPSidebarItem[data-v-d81de50c] .link {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  color: var(--sidebar-text) !important;
   transition:
     color 0.2s ease,
     background-color 0.2s ease;
 }
 
-.VPSidebar .item .link:hover {
-  color: var(--vp-c-brand-1) !important;
-  background: var(--d2l-sidebar-hover-bg);
+:where(html) .VPSidebarItem .VPLink,
+:where(html) .VPSidebarItem[data-v-d81de50c] .VPLink {
+  min-height: auto !important;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
 }
 
-.VPSidebar .item .link.is-active {
-  color: var(--vp-c-brand-1) !important;
+:where(html) .VPSidebarItem.level-0 .text,
+:where(html) .VPSidebarItem.level-0[data-v-d81de50c] .text {
+  line-height: 1.3 !important;
+}
+
+:where(html) .VPSidebarItem.level-1 .text,
+:where(html) .VPSidebarItem.level-1[data-v-d81de50c] .text,
+:where(html) .VPSidebarItem.level-2 .text,
+:where(html) .VPSidebarItem.level-2[data-v-d81de50c] .text,
+:where(html) .VPSidebarItem.level-3 .text,
+:where(html) .VPSidebarItem.level-3[data-v-d81de50c] .text {
+  padding: 0 !important;
+  line-height: 1.4 !important;
+}
+
+:where(html) .VPSidebarItem.level-0 .text {
+  color: #2f3137;
+  font-size: 0.9rem;
   font-weight: 700;
 }
 
-/* Sidebar carets */
-.VPSidebar .item .caret {
+:where(html) .VPSidebarItem.level-1 .text,
+:where(html) .VPSidebarItem.level-2 .text,
+:where(html) .VPSidebarItem.level-3 .text {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.dark :where(html) .VPSidebarItem.level-0 .text {
+  color: #f5f5f7;
+}
+
+:where(html) .VPSidebarItem .items,
+:where(html) .VPSidebarItem[data-v-d81de50c] .items {
+  border-left: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+
+:where(html) .VPSidebarItem .link:hover {
+  color: var(--vp-c-brand-1) !important;
+  background: var(--sidebar-hover-bg);
+}
+
+:where(html) .VPSidebarItem .link.is-active {
+  color: var(--vp-c-brand-1) !important;
+  font-weight: 700;
+  background: transparent;
+}
+
+:where(html) .VPSidebarItem .caret {
   opacity: 0.5;
   transition: opacity 0.2s ease;
 }
 
-.VPSidebar .item:hover .caret {
+:where(html) .VPSidebarItem .item:hover .caret {
   opacity: 0.8;
 }
 
 /* ===================================================
-   Doc Content Area (d2l 排版风格)
+   5. Doc Content Area (Apple 风格排版)
    =================================================== */
 .vp-doc {
   font-size: var(--ct-doc-font-size);
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 .vp-doc p,
@@ -234,20 +652,22 @@
 
 .vp-doc ul,
 .vp-doc ol {
-  gap: 0.2rem;
+  gap: 0.4rem;
 }
 
 .vp-doc ol {
-  padding-left: 1.35rem;
+  padding-left: 1.5rem;
 }
 
 .vp-doc ol > li::marker {
   color: var(--vp-c-brand-1);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .vp-doc a {
   text-underline-offset: 0.2em;
+  text-decoration-thickness: 1px;
+  transition: color 0.2s ease;
 }
 
 .vp-doc img {
@@ -256,57 +676,62 @@
   margin-right: auto;
 }
 
-/* ---- Headings (d2l 风格: 无衬线, 层级分明) ---- */
+/* ---- Headings (Apple 风格：超大字号、大留白、强对比) ---- */
 .vp-doc h1,
 .vp-doc h2,
 .vp-doc h3,
 .vp-doc h4 {
-  font-family: var(--d2l-font-sans);
+  font-family: var(--font-sans);
   font-weight: 700;
-  letter-spacing: 0;
-  color: #212121;
-}
-
-.vp-doc h1 {
-  font-size: 1.8rem;
-  line-height: 2rem;
-  margin-bottom: 1.5rem;
-}
-
-.vp-doc h2 {
-  font-size: 1.55rem;
-  line-height: 1.8rem;
-  padding-top: 1.5rem;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.dark .vp-doc h2 {
-  border-top-color: rgba(255, 255, 255, 0.06);
+  letter-spacing: -0.022em;
+  color: #1d1d1f;
 }
 
 .dark .vp-doc h1,
 .dark .vp-doc h2,
 .dark .vp-doc h3,
 .dark .vp-doc h4 {
-  color: #e0e0e0;
+  color: #f5f5f7;
+}
+
+.vp-doc h1 {
+  font-size: 3rem;
+  line-height: 1.05;
+  margin-bottom: 2rem;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.vp-doc h2 {
+  font-size: 2.25rem;
+  line-height: 1.1;
+  padding-top: 4rem;
+  margin-top: 4rem;
+  margin-bottom: 1.5rem;
+  border-top: 0;
+  font-weight: 700;
+}
+
+.dark .vp-doc h2 {
+  border-top-color: transparent;
 }
 
 .vp-doc h3 {
-  font-size: 1.35rem;
-  line-height: 1.6rem;
-  padding-top: 1rem;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  padding-top: 2rem;
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
 }
 
 .vp-doc h4 {
-  font-size: 1.1rem;
-  line-height: 1.4rem;
-  padding-top: 0.75rem;
-  margin-top: 1rem;
-  margin-bottom: 0.5rem;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  padding-top: 1.5rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
 }
 
 .vp-doc h2,
@@ -314,121 +739,157 @@
   scroll-margin-top: 80px;
 }
 
-/* ---- Paragraph spacing (d2l 紧凑感) ---- */
+/* ---- Paragraph spacing (Apple 超大宽松感) ---- */
 .vp-doc p {
   margin-top: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .vp-doc ul li,
 .vp-doc ol li {
-  margin: 0.3rem 0;
+  margin: 0.5rem 0;
 }
 
-/* ---- Code blocks (d2l 风格: 柔和背景, 小圆角) ---- */
+.vp-doc hr {
+  display: none;
+}
+
+/* ===================================================
+   6. Code Blocks (Apple 风格：去阴影、去边框)
+   =================================================== */
 .vp-doc :not(pre) > code {
-  font-family: var(--d2l-font-mono);
-  font-size: 0.9em;
-  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
   padding: 0.15em 0.4em;
-  background: var(--d2l-code-bg);
-  color: var(--d2l-code-text);
+  background: var(--code-bg);
+  color: var(--code-text);
+  border: none;
 }
 
 .vp-doc pre {
-  border-radius: 4px;
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
-  transition: box-shadow 0.2s ease;
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  border: none;
+  background: var(--surface-secondary) !important;
+  transition: background 0.2s ease;
 }
 
 .vp-doc pre:hover {
-  box-shadow:
-    0 3px 4px 0 rgba(0, 0, 0, 0.14),
-    0 3px 3px -2px rgba(0, 0, 0, 0.2),
-    0 1px 8px 0 rgba(0, 0, 0, 0.12);
+  background: var(--surface-quaternary) !important;
 }
 
 .vp-doc pre code {
-  font-family: var(--d2l-font-mono);
-  font-size: 0.9em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.65;
 }
 
 .dark .vp-doc :not(pre) > code {
-  --d2l-code-bg: rgba(255, 255, 255, 0.08);
-  --d2l-code-text: rgba(255, 255, 255, 0.87);
-  background: var(--d2l-code-bg);
-  color: var(--d2l-code-text);
+  --code-bg: rgba(63, 81, 181, 0.1);
+  --code-text: #f5f5f7;
 }
 
 .dark .vp-doc pre {
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.3),
-    0 3px 1px -2px rgba(0, 0, 0, 0.4),
-    0 1px 5px 0 rgba(0, 0, 0, 0.25);
+  background: var(--surface-secondary) !important;
 }
 
-/* ---- Blockquote (d2l: 左侧细线) ---- */
+.dark .vp-doc pre:hover {
+  background: var(--surface-tertiary) !important;
+}
+
+/* ===================================================
+   7. Blockquote (Apple 风格：大号引用、居中、品牌色)
+   =================================================== */
 .vp-doc blockquote {
-  border-left: 3px solid var(--d2l-blockquote-border);
-  padding: 0 1rem;
-  color: var(--vp-c-text-2);
-  font-size: 1rem;
+  border-left: none;
+  border-radius: 0;
+  padding: 2rem 2.5rem;
+  color: var(--vp-c-brand-1);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1.6;
+  background: transparent;
+  margin: 3rem 0;
+  text-align: center;
+  position: relative;
+}
+
+.vp-doc blockquote::before {
+  content: '"';
+  font-size: 4rem;
+  line-height: 1;
+  color: rgba(63, 81, 181, 0.12);
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: Georgia, serif;
+  pointer-events: none;
+}
+
+.vp-doc blockquote p {
+  margin-bottom: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .dark .vp-doc blockquote {
-  --d2l-blockquote-border: rgba(255, 255, 255, 0.1);
-  border-left-color: var(--d2l-blockquote-border);
+  color: #7986cb;
 }
 
-/* ---- Custom containers / Admonitions (d2l: 左侧色条) ---- */
+.dark .vp-doc blockquote::before {
+  color: rgba(121, 134, 203, 0.15);
+}
+
+/* ===================================================
+   8. Custom Containers / Admonitions (Apple 风格：去背景、去阴影)
+   =================================================== */
 .vp-doc .custom-block {
-  border-left: 4px solid;
-  border-radius: 0;
-  padding: 12px 20px;
-  margin-top: 10px;
-  margin-bottom: 10px;
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-top: 20px;
+  margin-bottom: 20px;
+  box-shadow: none;
+  background: var(--surface-secondary) !important;
 }
 
 .vp-doc .custom-block.tip {
-  border-left-color: var(--d2l-admonition-tip);
-  background-color: rgba(139, 195, 74, 0.1) !important;
+  background: rgba(52, 199, 89, 0.06) !important;
 }
 
 .vp-doc .custom-block.info {
-  border-left-color: var(--d2l-admonition-note);
-  background-color: rgba(0, 188, 212, 0.1) !important;
+  background: rgba(0, 113, 227, 0.06) !important;
 }
 
 .vp-doc .custom-block.warning {
-  border-left-color: var(--d2l-admonition-warning);
-  background-color: rgba(255, 193, 7, 0.1) !important;
+  background: rgba(255, 149, 0, 0.06) !important;
 }
 
 .vp-doc .custom-block.danger {
-  border-left-color: var(--d2l-admonition-danger);
-  background-color: rgba(244, 67, 54, 0.1) !important;
+  background: rgba(255, 59, 48, 0.06) !important;
 }
 
-/* ---- Output block (运行结果) ---- */
+/* ---- Output block ---- */
 .vp-doc .custom-block.output {
-  border-left: 4px solid #607d8b;
-  background-color: rgba(96, 125, 139, 0.06) !important;
-  border-radius: 4px;
-  padding: 12px 20px;
-  margin: 12px 0;
-  font-family: var(--d2l-font-mono);
-  font-size: 0.9em;
+  border: none;
+  background-color: var(--surface-secondary) !important;
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  margin: 16px 0;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
 }
 
 .vp-doc .custom-block.output .custom-block-title {
-  color: #607d8b;
-  font-size: 0.85em;
+  color: #86868b;
+  font-size: 0.8em;
+  font-weight: 600;
   text-transform: none;
-  letter-spacing: 0;
-  margin-bottom: 6px;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
 }
 
 .vp-doc .custom-block.output pre {
@@ -450,114 +911,132 @@
 }
 
 .dark .vp-doc .custom-block.output {
-  border-left-color: #78909c;
-  background-color: rgba(120, 144, 156, 0.08) !important;
+  background-color: var(--surface-secondary) !important;
 }
 
 .dark .vp-doc .custom-block.output .custom-block-title {
-  color: #90a4ae;
+  color: #98989d;
 }
 
+/* Admonition titles */
 .vp-doc .custom-block .custom-block-title {
-  font-size: 16px;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .vp-doc .custom-block.tip .custom-block-title {
-  color: var(--d2l-admonition-tip);
+  color: var(--adm-tip);
 }
 
 .vp-doc .custom-block.info .custom-block-title {
-  color: var(--d2l-admonition-note);
+  color: var(--adm-note);
 }
 
 .vp-doc .custom-block.warning .custom-block-title {
-  color: var(--d2l-admonition-warning);
+  color: var(--adm-warning);
 }
 
 .vp-doc .custom-block.danger .custom-block-title {
-  color: var(--d2l-admonition-danger);
+  color: var(--adm-danger);
 }
 
-/* ---- Tables (d2l Material Design 风格) ---- */
+/* ===================================================
+   9. Tables (Apple 风格：去阴影、去边框、极简)
+   =================================================== */
 .vp-doc table {
   position: relative;
   display: block;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-collapse: collapse;
-  font-size: 0.85rem;
+  border: none;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  font-size: 0.875rem;
   margin: 1.5rem auto;
   table-layout: auto;
   width: fit-content;
   max-width: 100%;
   overflow-x: auto;
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: none;
+  background: var(--surface-secondary);
 }
 
 .vp-doc table th {
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(0, 0, 0, 0.54);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #86868b;
+  background: transparent;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 0.75rem 1.25rem;
+  text-transform: none;
+  letter-spacing: -0.01em;
 }
 
 .vp-doc table td {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   white-space: normal;
   overflow-wrap: break-word;
-  padding: 0.4rem 0.8rem;
+  padding: 0.75rem 1.25rem;
   vertical-align: middle;
-  line-height: 1.4;
+  line-height: 1.5;
+}
+
+.vp-doc table tr:last-child td {
+  border-bottom: none;
 }
 
 .vp-doc table tr:hover {
-  background-color: #eee;
+  background-color: rgba(0, 0, 0, 0.02);
 }
 
 .dark .vp-doc table {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: none;
+  background: var(--surface-secondary);
 }
 
 .dark .vp-doc table th {
-  color: rgba(255, 255, 255, 0.5);
-  border-bottom-color: rgba(255, 255, 255, 0.12);
+  color: #98989d;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
 .dark .vp-doc table td {
-  border-bottom-color: rgba(255, 255, 255, 0.12);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
 }
 
 .dark .vp-doc table tr:hover {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
-/* ---- Images (d2l: 居中, 不加卡片底座) ---- */
+/* ===================================================
+   10. Images (Apple 风格：大圆角、极淡阴影)
+   =================================================== */
 .vp-doc p > img,
 .vp-doc figure > img,
 .vp-doc > img {
   display: block;
-  margin: 1.5rem auto;
-  max-height: 280px;
+  margin: 2rem auto;
+  max-height: 320px;
   width: auto;
   max-width: 100%;
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-light);
 }
 
 .vp-doc .image-caption {
-  color: var(--vp-c-text-2);
-  font-size: 0.9em;
+  color: #86868b;
+  font-size: 0.875em;
   margin-top: -0.75rem;
   text-align: center;
 }
 
-/* ---- Mermaid diagrams ---- */
+/* ===================================================
+   11. Mermaid Diagrams
+   =================================================== */
 .vp-doc .mermaid,
 .vp-doc pre.mermaid,
 .vp-doc div[class*='mermaid'],
@@ -583,23 +1062,57 @@
   max-height: none;
 }
 
-/* ---- Dark mode: Feature cards ---- */
+/* ===================================================
+   12. Feature Cards (Homepage Apple 风格)
+   =================================================== */
+.VPFeature {
+  border: none;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-secondary);
+  box-shadow: none;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 32px;
+}
+
+.VPFeature:hover {
+  background: var(--surface-quaternary);
+  transform: translateY(-2px);
+}
+
+.VPButton.brand {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-brand);
+  transition: all 0.25s ease;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.VPButton.brand:hover {
+  box-shadow: 0 4px 12px rgba(63, 81, 181, 0.25);
+  transform: translateY(-1px);
+}
+
 .dark .VPFeature {
-  border-color: rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.92);
+  background: var(--surface-secondary);
   box-shadow: none;
 }
 
-/* ---- Footnote styles ---- */
+.dark .VPFeature:hover {
+  background: var(--surface-tertiary);
+}
+
+/* ===================================================
+   13. Footnotes
+   =================================================== */
 .vp-doc .footnotes-sep {
   display: none;
 }
 
 .vp-doc .footnotes {
-  margin-top: 1rem;
+  margin-top: 2rem;
   padding-top: 0;
-  font-size: 0.88em;
-  color: var(--vp-c-text-2);
+  font-size: 0.875em;
+  color: #86868b;
 }
 
 .vp-doc .footnotes ol {
@@ -608,13 +1121,13 @@
 }
 
 .vp-doc .footnotes li {
-  margin-bottom: 0.4em;
+  margin-bottom: 0.5em;
 }
 
 .vp-doc sup a.footnote-ref {
   color: var(--vp-c-brand-1);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .vp-doc sup a.footnote-ref:hover {
@@ -631,7 +1144,9 @@
   text-decoration: underline;
 }
 
-/* ---- KaTeX / MathJax ---- */
+/* ===================================================
+   14. KaTeX / MathJax
+   =================================================== */
 .katex {
   font-size: 1.1em;
 }
@@ -684,12 +1199,8 @@ mjx-container[display='true'] {
 }
 
 /* ===================================================
-   Full Width Layout
+   15. Full Width Layout
    =================================================== */
-:root {
-  --vp-layout-max-width: 100%;
-}
-
 .VPDoc > .container {
   max-width: 100% !important;
 }
@@ -704,7 +1215,7 @@ mjx-container[display='true'] {
 
 @media (min-width: 1280px) {
   .VPDoc > .container > .content {
-    padding: 0 64px 128px !important;
+    padding: 0 48px 128px !important;
   }
 }
 
@@ -718,23 +1229,22 @@ mjx-container[display='true'] {
   }
 
   .VPDoc > .container > .content {
-    padding: 0 128px 128px !important;
+    padding: 0 96px 128px !important;
   }
 }
 
 /* ===================================================
-   Aside Outline (参考 d2l localtoc)
+   16. Aside Outline (Apple 风格)
    =================================================== */
-/* Make outline scrollable when it exceeds viewport */
 .VPDocAsideOutline {
   max-height: calc(100vh - 160px);
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+  scrollbar-color: rgba(134, 134, 139, 0.15) transparent;
 }
 
 .VPDocAsideOutline::-webkit-scrollbar {
-  width: 4px;
+  width: 3px;
 }
 
 .VPDocAsideOutline::-webkit-scrollbar-track {
@@ -742,29 +1252,49 @@ mjx-container[display='true'] {
 }
 
 .VPDocAsideOutline::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 4px;
+  background: rgba(134, 134, 139, 0.12);
+  border-radius: var(--radius-full);
 }
 
 .dark .VPDocAsideOutline {
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: rgba(152, 152, 157, 0.1) transparent;
 }
 
 .dark .VPDocAsideOutline::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(152, 152, 157, 0.08);
 }
 
 .VPDocAsideOutline .content {
-  padding-left: 10px;
+  border-left: 0 !important;
+  border-radius: 0;
+  padding: 2px 0 2px 14px !important;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .VPDocAsideOutline .outline-title {
-  margin-bottom: 2px;
-  font-size: 0.9rem;
-  font-weight: 700;
+  margin: 0 0 10px;
+  padding: 0;
+  line-height: 1.4;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a1a1a6;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-/* Hide VitePress default outline marker bar (the fixed top indicator) */
+.dark .VPDocAsideOutline .outline-title {
+  color: #8e8e93;
+}
+
+.dark .VPDocAsideOutline .content {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Hide VitePress default outline marker bar */
 .VPDocAsideOutline .outline-marker {
   display: none !important;
 }
@@ -780,104 +1310,165 @@ mjx-container[display='true'] {
 
 .VPDocAsideOutline .VPDocOutlineItem .outline-link {
   display: block;
-  padding: 6px 0 6px 8px;
+  position: relative;
+  padding: 5px 0 5px 10px;
   min-height: 28px;
-  line-height: 1.4;
+  line-height: 1.35;
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
   overflow-wrap: anywhere;
   word-break: break-word;
-  border-radius: 0;
-  border-left: 2px solid transparent;
-  transition:
-    color 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease;
+  border-left: 0;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  color: #8e8e93;
+  transition: all 0.2s ease;
 }
 
 .VPDocAsideOutline .VPDocOutlineItem.nested {
-  padding-left: 10px;
+  padding-left: 8px;
   padding-right: 0;
 }
 
 /* Hover */
 .VPDocAsideOutline .VPDocOutlineItem .outline-link:hover,
 .VPDocAsideOutline .VPDocOutlineItem .outline-link:focus-visible {
-  color: var(--vp-c-text-1);
-  background: rgba(0, 0, 0, 0.03);
-  border-left-color: rgba(0, 0, 0, 0.15);
+  color: #3a3a3c;
+  background: transparent;
 }
 
-/* Active — d2l localtoc: left border stripe, no rounded bg */
+/* Active */
 .VPDocAsideOutline .VPDocOutlineItem .outline-link.active {
   margin: 0;
-  padding: 6px 6px 6px 5px;
-  color: var(--vp-c-brand-1);
-  font-weight: 700;
-  background: none;
+  padding: 5px 0 5px 10px;
+  color: var(--vp-c-brand-2);
+  font-weight: 600;
+  background: transparent;
   box-shadow: none;
   transform: none;
-  border-left: 3px solid var(--vp-c-brand-1);
+  border-left: 0;
+  border-radius: var(--radius-sm);
+}
+
+.VPDocAsideOutline .VPDocOutlineItem .outline-link.active::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: currentcolor;
+  opacity: 0.72;
 }
 
 .dark .VPDocAsideOutline .VPDocOutlineItem .outline-link:hover,
 .dark .VPDocAsideOutline .VPDocOutlineItem .outline-link:focus-visible {
-  color: var(--vp-c-text-1);
-  background: rgba(255, 255, 255, 0.04);
-  border-left-color: rgba(255, 255, 255, 0.15);
+  color: #f5f5f7;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .dark .VPDocAsideOutline .VPDocOutlineItem .outline-link.active {
-  background: none;
+  background: var(--vp-c-brand-soft);
   box-shadow: none;
 }
 
 /* ===================================================
-   Prev / Next Navigation (页面底部导航)
+   17. Prev / Next Navigation (Apple 风格)
    =================================================== */
 .VPDocFooter .pager {
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 0;
+  padding-top: 0;
 }
 
-.dark .VPDocFooter .pager {
-  border-top-color: rgba(255, 255, 255, 0.06);
+.VPDocFooter .prev-next {
+  border-top-color: rgba(0, 0, 0, 0.08);
 }
 
 .VPDocFooter .pager-link {
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+  border: none;
+  border-radius: var(--radius-lg);
+  transition: all 0.3s ease;
+  background: var(--surface-secondary);
+  box-shadow: none;
+  padding: 16px 20px;
 }
 
 .VPDocFooter .pager-link:hover {
-  border-color: var(--vp-c-brand-1);
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  background: var(--surface-quaternary);
+  transform: translateY(-1px);
 }
 
 .dark .VPDocFooter .pager-link {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-.dark .VPDocFooter .pager-link:hover {
-  border-color: var(--vp-c-brand-1);
+  background: var(--surface-secondary);
   box-shadow: none;
 }
 
+.dark .VPDocFooter .pager-link:hover {
+  background: var(--surface-tertiary);
+}
+
 /* ===================================================
-   Edit Link
+   18. Edit Link
    =================================================== */
 .VPDocFooter .edit-link a {
   font-size: 0.85rem;
-  color: var(--vp-c-text-2);
+  color: #86868b;
   transition: color 0.2s ease;
 }
 
 .VPDocFooter .edit-link a:hover {
   color: var(--vp-c-brand-1);
+}
+
+/* ===================================================
+   19. Smooth Scroll & Selection
+   =================================================== */
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(63, 81, 181, 0.15);
+  color: inherit;
+}
+
+.dark ::selection {
+  background: rgba(63, 81, 181, 0.25);
+}
+
+/* ===================================================
+   20. Mobile Optimizations
+   =================================================== */
+@media (max-width: 768px) {
+  .vp-doc h1 {
+    font-size: 2rem;
+  }
+
+  .vp-doc h2 {
+    font-size: 1.5rem;
+  }
+
+  .vp-doc h3 {
+    font-size: 1.25rem;
+  }
+
+  .vp-doc pre {
+    border-radius: var(--radius-md);
+  }
+
+  .vp-doc .custom-block {
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+  }
+
+  .VPFeature {
+    border-radius: var(--radius-lg);
+    padding: 24px;
+  }
+
+  .VPDocFooter .pager-link {
+    padding: 12px 16px;
+  }
 }

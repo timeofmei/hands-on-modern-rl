@@ -13,7 +13,7 @@ const route = useRoute()
 const FONT_SIZE_STORAGE_KEY = 'ct-doc-font-size'
 const LINE_HEIGHT_STORAGE_KEY = 'ct-doc-line-height'
 const SIDEBAR_COLLAPSED_KEY = 'ct-sidebar-collapsed'
-const SIDEBAR_WIDTH_KEY = 'ct-sidebar-width'
+const SIDEBAR_WIDTH_KEY = 'ct-sidebar-width-compact'
 
 const MIN_FONT_SIZE = 15
 const MAX_FONT_SIZE = 20
@@ -23,7 +23,7 @@ const MAX_LINE_HEIGHT = 2
 const DEFAULT_LINE_HEIGHT = 1.75
 
 const DEFAULT_SIDEBAR_WIDTH = 272
-const MIN_SIDEBAR_WIDTH = 190
+const MIN_SIDEBAR_WIDTH = 160
 const MAX_SIDEBAR_WIDTH = 520
 
 const fontSize = ref(DEFAULT_FONT_SIZE)
@@ -900,7 +900,7 @@ watch(
 <style>
 .ct-reading-tools {
   position: relative;
-  margin-left: 14px;
+  margin-left: 6px;
 }
 
 .ct-reading-tools-button {
@@ -909,32 +909,27 @@ watch(
   justify-content: center;
   height: 34px;
   min-width: 34px;
-  padding: 0 12px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.95);
-  color: var(--vp-c-text-2);
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(29, 29, 31, 0.58);
   font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+  letter-spacing: 0;
+  box-shadow: none;
   cursor: pointer;
   transition:
+    background-color 0.18s ease,
     color 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    border-color 0.18s ease;
 }
 
-.ct-reading-tools-button:hover {
-  border-color: rgba(15, 118, 110, 0.4);
-  color: var(--vp-c-brand-1);
-  box-shadow:
-    0 3px 4px 0 rgba(0, 0, 0, 0.14),
-    0 3px 3px -2px rgba(0, 0, 0, 0.2),
-    0 1px 8px 0 rgba(0, 0, 0, 0.12);
+.ct-reading-tools-button:hover,
+.ct-reading-tools-button:focus-visible {
+  border-color: rgba(0, 0, 0, 0.05);
+  background: rgba(0, 0, 0, 0.04);
+  color: rgba(29, 29, 31, 0.82);
 }
 
 .ct-reading-tools-panel {
@@ -944,12 +939,9 @@ watch(
   width: 280px;
   padding: 14px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.14),
-    0 3px 1px -2px rgba(0, 0, 0, 0.2),
-    0 1px 5px 0 rgba(0, 0, 0, 0.12);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
   z-index: 40;
 }
 
@@ -991,7 +983,7 @@ watch(
 .ct-reading-tools-action {
   height: 34px;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 4px;
+  border-radius: 8px;
   background: rgba(0, 0, 0, 0.02);
   color: var(--vp-c-text-1);
   font-size: 13px;
@@ -1172,10 +1164,21 @@ watch(
 .dark .ct-sidebar-toggle-btn {
   border-color: rgba(255, 255, 255, 0.12);
   background: rgba(30, 30, 40, 0.92);
-  box-shadow:
-    0 2px 2px 0 rgba(0, 0, 0, 0.3),
-    0 3px 1px -2px rgba(0, 0, 0, 0.4),
-    0 1px 5px 0 rgba(0, 0, 0, 0.25);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.dark .ct-reading-tools-button {
+  border-color: transparent;
+  background: transparent;
+  color: rgba(245, 245, 247, 0.58);
+  box-shadow: none;
+}
+
+.dark .ct-reading-tools-button:hover,
+.dark .ct-reading-tools-button:focus-visible {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(245, 245, 247, 0.84);
 }
 
 .dark .ct-reading-tools-action {
@@ -1273,7 +1276,7 @@ watch(
 
 @media (max-width: 768px) {
   .ct-reading-tools {
-    margin-left: 10px;
+    margin-left: 4px;
   }
 
   .ct-reading-tools-panel {
