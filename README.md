@@ -16,7 +16,7 @@
   </p>
 
   <p>
-    <a href="#discussion-group-wechat">Discussion Group (微信)</a>
+    <a href="#discussion-group-wechat">Discussion Group (WeChat)</a>
   </p>
 
   <p>
@@ -397,9 +397,11 @@ Our team has also created other courses. Take a look:
 
 [![LEARN HARNESS ENGINEERING](https://img.shields.io/badge/LEARN_HARNESS_ENGINEERING-0052cc?style=for-the-badge)](https://github.com/walkinglabs/learn-harness-engineering)
 
-## Discussion Group (微信)
+[![MODERN LLM NOTEBOOK](https://img.shields.io/badge/MODERN_LLM_NOTEBOOK-0052cc?style=for-the-badge)](https://github.com/walkinglabs/modern-llm-notebook)
 
-For suggestions or feedback, scan the QR code to join the discussion group (微信):
+## Discussion Group (WeChat)
+
+For suggestions or feedback, scan the QR code to join the discussion group (WeChat):
 
 <img src="https://github.com/walkinglabs/.github/raw/main/profile/wechat.png" alt="Discussion Group" width="300" />
 
