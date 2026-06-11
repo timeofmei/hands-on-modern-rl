@@ -310,13 +310,67 @@ function mathBlock(state, start, end, silent) {
 }
 
 function renderKatex(content, displayMode) {
-  return katex.renderToString(content, {
-    displayMode,
-    output: 'htmlAndMathml',
-    throwOnError: false,
-    strict: false,
-    trust: true
-  })
+  try {
+    return katex.renderToString(content, {
+      displayMode,
+      output: 'htmlAndMathml',
+      throwOnError: true,  // Enable error throwing for debugging
+      strict: false,
+      trust: true
+    })
+  } catch (error) {
+    // Log detailed error information with file context
+    const fs = require('fs');
+    const path = require('path');
+    const markdownFile = path.join(process.cwd(), 'docs/chapter07_ppo/ppo-math.md');
+
+    console.error('\n' + '='.repeat(80))
+    console.error('❌ KaTeX Rendering Error')
+    console.error('='.repeat(80))
+    console.error(`Mode: ${displayMode ? 'Display Math ($$...$$)' : 'Inline Math ($...$)'}`)
+    console.error(`Expression: ${content.substring(0, 200)}${content.length > 200 ? '...' : ''}`)
+    console.error(`Error: ${error.message}`)
+    if (error.position !== undefined) {
+      console.error(`Position in expression: ${error.position}`)
+      const start = Math.max(0, error.position - 50)
+      const end = Math.min(content.length, error.position + 50)
+      console.error(`Context: ...${content.substring(start, end)}...`)
+    }
+
+    // Try to find this expression in the markdown file
+    try {
+      const mdContent = fs.readFileSync(markdownFile, 'utf8')
+      const searchStr = content.substring(0, Math.min(100, content.length))
+      const index = mdContent.indexOf(searchStr)
+      if (index !== -1) {
+        const lineNum = mdContent.substring(0, index).split('\n').length
+        console.error(`Location: ${markdownFile}, approximately line ${lineNum}`)
+
+        // Show surrounding lines
+        const lines = mdContent.split('\n')
+        const startLine = Math.max(0, lineNum - 3)
+        const endLine = Math.min(lines.length, lineNum + 2)
+        console.error('\nSurrounding context:')
+        for (let i = startLine; i < endLine; i++) {
+          const marker = (i + 1) === lineNum ? '>>> ' : '    '
+          console.error(`${marker}${i + 1}: ${lines[i].substring(0, 100)}`)
+        }
+      }
+    } catch (e) {
+      // Ignore file reading errors
+    }
+
+    console.error('='.repeat(80) + '\n')
+
+    // Return error HTML for visibility in the page
+    return `<div style="background: #fee; border: 2px solid #c00; padding: 10px; margin: 10px 0; border-radius: 4px;">
+      <strong style="color: #c00;">KaTeX Rendering Error</strong>
+      <p style="margin: 5px 0;"><strong>Mode:</strong> ${displayMode ? 'Display' : 'Inline'}</p>
+      <p style="margin: 5px 0;"><strong>Expression:</strong> <code>${content.substring(0, 150)}${content.length > 150 ? '...' : ''}</code></p>
+      <p style="margin: 5px 0;"><strong>Error:</strong> ${error.message}</p>
+      <p style="margin: 5px 0; font-size: 0.9em; color: #666;">Check browser console for detailed stack trace and file location.</p>
+    </div>`
+  }
 }
 
 function rescueMathInInline(md) {
