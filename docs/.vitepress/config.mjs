@@ -320,29 +320,48 @@ function renderKatex(content, displayMode) {
 }
 
 function rescueMathInInline(md) {
-  md.core.ruler.push('math_inline_rescue', function (state) {
-    for (let i = 0; i < state.tokens.length; i++) {
-      const token = state.tokens[i]
+  // Phase 1 (core, before inline): protect $...$ from emphasis/strong rules.
+  // Replace inline-math in raw token content with unique placeholders so that
+  // markdown's emphasis rule never sees the underscores inside formulas.
+  let mathCounter = 0
+  const mathStore = new Map()
+
+  md.core.ruler.before('inline', 'math_inline_protect', function (state) {
+    for (const token of state.tokens) {
+      if (token.type !== 'inline') continue
+      if (!token.content.includes('$')) continue
+
+      token.content = token.content.replace(/\$([^\$]+)\$/g, function (match, formula) {
+        const key = '\x01MATH' + (mathCounter++) + '\x01'
+        mathStore.set(key, formula)
+        return key
+      })
+    }
+  })
+
+  // Phase 2 (core, after inline): restore placeholders as math_inline tokens.
+  md.core.ruler.after('inline', 'math_inline_restore', function (state) {
+    for (const token of state.tokens) {
       if (token.type !== 'inline' || !token.children) continue
 
-      let needsRescue = false
+      let hasPlaceholder = false
       for (const child of token.children) {
-        if (child.type === 'text' && /\$[^$]+\$/.test(child.content)) {
-          needsRescue = true
+        if (child.type === 'text' && child.content.includes('\x01')) {
+          hasPlaceholder = true
           break
         }
       }
-      if (!needsRescue) continue
+      if (!hasPlaceholder) continue
 
       const newChildren = []
       for (const child of token.children) {
-        if (child.type === 'text' && child.content.includes('$')) {
-          const parts = child.content.split(/(\$[^$]+\$)/)
+        if (child.type === 'text' && child.content.includes('\x01')) {
+          const parts = child.content.split(/(\x01MATH\d+\x01)/)
           for (const part of parts) {
             if (!part) continue
-            if (part.startsWith('$') && part.endsWith('$') && part.length > 2) {
+            if (part.startsWith('\x01MATH') && mathStore.has(part)) {
               const t = new state.Token('math_inline', 'math', 0)
-              t.content = part.slice(1, -1)
+              t.content = mathStore.get(part)
               t.markup = '$'
               newChildren.push(t)
             } else {
@@ -747,7 +766,7 @@ const zhSidebar = {
               link: '/chapter07_ppo/ppo-bipedal-walker'
             },
             {
-              text: '7.2 PPO 推导',
+              text: '7.2 PPO 数学推导',
               link: '/chapter07_ppo/ppo-math'
             },
             {

@@ -9,13 +9,12 @@ In the previous section, we trained LunarLander with SB3's PPO and looked at cur
 **What exactly is PPO, and why does it eventually become a single loss function?**
 
 ::: tip Prerequisites
-This section integrates and extends the material from Chapters 5 and 6. The following ideas will appear repeatedly in the derivation:
+This section starts directly from PPO's derivation starting point. The following concepts are assumed (for a review, see the [Appendix](#appendix-deriving-policy-gradients-and-advantage-from-scratch)):
 
-- [Policy objective $J(\theta)$](../chapter03_mdp/policy-objective) - what PPO tries to maximize
-- [Policy Gradient Theorem](../chapter05_policy_gradient/reinforce) - where PPO's derivation starts
-- [Advantage function $A(s,a)$](../chapter06_actor_critic/advantage-function) - a lower-variance substitute for $G_t$
-- [Critic training](../chapter06_actor_critic/critic-training) - the theoretical source of the value-function loss
-- [Discounted return $G_t$](../chapter03_mdp/mdp) - from one-step rewards to long-horizon objectives
+- **Policy gradient theorem**: $\nabla_\theta J(\theta) = \mathbb{E}_t[\nabla_\theta \log \pi_\theta(a_t\mid s_t)\hat{A}_t]$
+- **Advantage function $A_t$**: measures how much better an action is than average; baseline provided by the Critic
+- **Actor-Critic framework**: Actor chooses actions, Critic estimates state values
+- **On-policy constraint**: vanilla policy gradients require data from the current policy; each batch can only be used once
   :::
 
 PPO stands for **Proximal Policy Optimization**. The name is worth unpacking:
@@ -88,306 +87,32 @@ When key variables appear later, we will repeatedly refer back to this mapping t
 | $\varepsilon$                | PPO clipping range, often `0.1` or `0.2`                                     | `clip_eps` / `clip_range`                |
 | $H[\pi_\theta]$              | policy entropy (how random the action distribution is)                       | `entropy`                                |
 
-![PPO Core Idea: learn multiple epochs on the same batch, while clipping prevents the new policy from drifting too far from the old one](../../chapter07_ppo/images/ppo-core-idea.svg)
-
-## Step 1: A Probabilistic View of Reinforcement Learning
-
-The most basic reinforcement-learning loop is:
+This section's derivation path:
 
 ```mermaid
-flowchart LR
-    S["Observe state<br/>s_t"] --> P["Policy chooses action<br/>a_t"]
-    P --> E["Environment returns<br/>reward r_t<br/>next state s_{t+1}"]
+flowchart TD
+    A["Limitation of vanilla policy gradients<br/>on-policy data can only be used once"] --> B["Importance sampling<br/>evaluate new policy with old data"]
+    B --> C["Surrogate objective<br/>ratio × advantage"]
+    C --> D["PPO-Clip<br/>constrain policy-ratio change"]
+    D --> E["Complete loss function<br/>policy loss + value loss + entropy"]
+    E --> F["Complete PPO algorithm"]
 ```
 
-Here $t$ is the time step. $s_t$ is the state observed at step $t$, $a_t$ is the action taken, and $r_t$ is the immediate feedback from the environment. **Reinforcement learning is not about a single reward; it is about the long-term result produced by a sequence of decisions.**
-
-We typically formalize the environment as a [Markov Decision Process (MDP)](../chapter03_mdp/mdp):
+Once we walk through these steps, the final PPO formula will not seem to come out of thin air:
 
 $$
-\mathcal{M} = (\mathcal{S}, \mathcal{A}, P, R, \gamma)
-$$
-
-Each symbol means (review: [the MDP 5-tuple](../chapter03_mdp/mdp)):
-
-- $\mathcal{S}$: state space, the set of all possible states.
-- $\mathcal{A}$: action space, the set of all possible actions.
-- $P(s_{t+1}\mid s_t,a_t)$: transition probability, the probability of moving to $s_{t+1}$ after taking action $a_t$ at state $s_t$.
-- $R(s_t,a_t)$: reward function, the immediate payoff of the action.
-- $\gamma$: [discount factor](../chapter03_mdp/mdp), how much we value future rewards today.
-
-**The policy is what we train.** In symbols:
-
-$$
-\pi_\theta(a_t \mid s_t)
-$$
-
-This means: "the policy network with parameters $\theta$ assigns probability to action $a_t$ under state $s_t$." In code, the Actor typically outputs action probabilities, then wraps them into a distribution object `dist`:
-
-<PpoCodeFocus focus="dist" />
-
-By default, this shows **[A] policy outputs** and **[B] action sampling**. In the full code, network definitions appear before it, and rollout collection appears after it.
-
-`action_probs` corresponds to $\pi_\theta(\cdot \mid s_t)$, the probability distribution over all actions. For example, in a discrete environment with 3 actions, `action_probs = [0.1, 0.7, 0.2]` means action 0 has 10% probability, action 1 has 70%, and action 2 has 20%.
-
-`dist` is short for distribution: a **distribution object**. `Categorical(action_probs)` wraps the probabilities into a discrete distribution. It is not an action, and it is not a parameter; it is better viewed as a "lottery box with tools" where each action has its own probability.
-
-This object provides methods that show up everywhere in RL code:
-
-| Code                    | Meaning                                                                      | Math Counterpart                      |
-| ----------------------- | ---------------------------------------------------------------------------- | ------------------------------------- |
-| `dist.sample()`         | sample an action according to `action_probs` instead of always taking argmax | $a_t \sim \pi_\theta(\cdot \mid s_t)$ |
-| `dist.log_prob(action)` | the log probability of the sampled action                                    | $\log \pi_\theta(a_t \mid s_t)$       |
-| `dist.entropy()`        | how random the action distribution is (later used to encourage exploration)  | $H[\pi_\theta]$                       |
-
-So `action` is sampled from `dist`, and `log_prob` is the log probability of that action under the current policy. We will need it for policy gradients and PPO ratios. Here we use `Categorical` because tasks like CartPole and LunarLander have discrete actions. For continuous actions, one often uses a continuous distribution such as `Normal`, but the pattern is the same:
-
-**construct a distribution, sample an action, and record the `log_prob`.**
-
-If we run from the initial state until termination, we obtain a trajectory:
-
-$$
-\tau = (s_0,a_0,r_0,s_1,a_1,r_1,\ldots,s_T)
-$$
-
-$\tau$ is short for trajectory. It is not a single sample, but a full interaction history. Given a policy $\pi_\theta$, the probability of seeing trajectory $\tau$ can be written as:
-
-$$
-p_\theta(\tau)
-= \rho_0(s_0)
-\prod_{t=0}^{T-1}
-\pi_\theta(a_t\mid s_t)
-P(s_{t+1}\mid s_t,a_t)
-$$
-
-This expression is long, but it says only three things:
-
-- $\rho_0(s_0)$: where the initial state comes from.
-- $\pi_\theta(a_t\mid s_t)$: how the agent selects actions at each state.
-- $P(s_{t+1}\mid s_t,a_t)$: how the environment transitions after actions.
-
-The crucial observation is:
-
-**In this product, only $\pi_\theta(a_t\mid s_t)$ contains the trainable parameters $\theta$.**
-
-The environment dynamics $P$ are usually unknown, non-differentiable, and not directly modifiable. This is why policy-gradient methods only need the action `log_prob`: the root cause is that only the policy term depends on $\theta$.
-
-## Step 2: Discounted Return
-
-If we maximize the immediate reward $r_t$ only, the agent becomes myopic. For example, in LunarLander, firing the engine hard might change attitude immediately but can cause a crash later. Reinforcement learning is about maximizing a **sequence of future rewards**:
-
-$$
-G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots
-$$
-
-More compactly:
-
-$$
-G_t = \sum_{k=0}^{T-t-1}\gamma^k r_{t+k}
-$$
-
-The symbols mean:
-
-- $G_t$: the return, the cumulative reward starting from time $t$.
-- $k$: offset into the future. $k=0$ is the current reward $r_t$, $k=1$ is the next-step reward $r_{t+1}$.
-- $\gamma^k$: discount weight for future rewards. The farther the reward, the more it is discounted.
-- $T$: trajectory length. For continuing tasks, one often writes $\sum_{k=0}^{\infty}\gamma^k r_{t+k}$.
-
-Why introduce $\gamma$? Three reasons.
-
-First, $\gamma$ expresses that "the future matters, but is usually less certain than the present." When $\gamma=0$, the agent only cares about immediate rewards; as $\gamma$ approaches $1$, it cares more about long-term outcomes. For CartPole and LunarLander, a typical choice is $\gamma=0.99$.
-
-Second, in infinite-horizon tasks, if every step has positive reward then a direct sum can diverge. With $0\le\gamma<1$, discounted sums are much more likely to remain finite.
-
-Third, discounted return has a **very implementation-friendly recursion**:
-
-$$
-G_t = r_t + \gamma G_{t+1}
-$$
-
-This means: total return from now equals "reward now" plus "discounted return from the next step." In code, we typically compute returns backward in time:
-
-```python {4}
-G = 0
-returns = []
-for reward in reversed(rewards):
-    G = reward + gamma * G
-    returns.insert(0, G)
-```
-
-Here `G` corresponds to $G_t$, `reward` is $r_t$, `gamma` is $\gamma$, and `returns` stores the discounted return for each time step.
-
-With this, the objective of a policy can be written as:
-
-$$
-J(\theta)
-= \mathbb{E}_{\tau \sim p_\theta(\tau)}[G_0]
-= \mathbb{E}_{\tau \sim \pi_\theta}
-\left[
-\sum_{t=0}^{T-1}\gamma^t r_t
+L^{\text{CLIP}}(\theta)
+= \mathbb{E}_t\left[
+\min\left(
+r_t(\theta)\hat{A}_t,\;
+\text{clip}(r_t(\theta),1-\varepsilon,1+\varepsilon)\hat{A}_t
+\right)
 \right]
 $$
 
-$J(\theta)$ reads as: "how good is the policy with parameters $\theta$?" The $\mathbb{E}$ denotes **expectation**, because even the same policy can yield different trajectories across runs. The environment may be stochastic, and the policy samples actions stochastically. So we maximize not the reward from a single run, but the **long-run return in expectation**.
+## Starting Point: The Limits of Vanilla Policy Gradients
 
-## Step 3: From Objective to Policy Gradient
-
-Now the question becomes: how do we adjust $\theta$ to increase $J(\theta)$?
-
-Write the objective as a sum over all possible trajectories:
-
-$$
-J(\theta)
-= \sum_{\tau} p_\theta(\tau)R(\tau)
-$$
-
-where $R(\tau)$ is the discounted return of the full trajectory. Differentiate with respect to $\theta$:
-
-$$
-\nabla_\theta J(\theta)
-= \sum_{\tau} \nabla_\theta p_\theta(\tau)R(\tau)
-$$
-
-Differentiating trajectory probability $p_\theta(\tau)$ directly is hard. **The key trick in policy gradients** is the identity:
-
-$$
-\nabla_\theta p_\theta(\tau)
-= p_\theta(\tau)\nabla_\theta \log p_\theta(\tau)
-$$
-
-which follows from $\nabla \log x = \frac{1}{x}\nabla x$. Substitute it back:
-
-$$
-\nabla_\theta J(\theta)
-= \sum_{\tau} p_\theta(\tau)
-\nabla_\theta \log p_\theta(\tau)
-R(\tau)
-= \mathbb{E}_{\tau\sim p_\theta}
-\left[
-\nabla_\theta \log p_\theta(\tau)R(\tau)
-\right]
-$$
-
-Now expand $\log p_\theta(\tau)$:
-
-$$
-\log p_\theta(\tau)
-= \log \rho_0(s_0)
-+ \sum_{t=0}^{T-1}\log \pi_\theta(a_t\mid s_t)
-+ \sum_{t=0}^{T-1}\log P(s_{t+1}\mid s_t,a_t)
-$$
-
-When differentiating with respect to $\theta$, $\rho_0$ and $P$ vanish since they do not depend on $\theta$:
-
-$$
-\nabla_\theta \log p_\theta(\tau)
-= \sum_{t=0}^{T-1}
-\nabla_\theta \log \pi_\theta(a_t\mid s_t)
-$$
-
-This yields the classic REINFORCE gradient:
-
-$$
-\nabla_\theta J(\theta)
-=
-\mathbb{E}_{\tau\sim\pi_\theta}
-\left[
-\sum_{t=0}^{T-1}
-\nabla_\theta \log \pi_\theta(a_t\mid s_t)G_t
-\right]
-$$
-
-Why use $G_t$ instead of the full-trajectory return $G_0$? Because the action at time $t$ cannot affect rewards that happened before time $t$. Using the return from the current time onward respects causality and reduces noise.
-
-In implementations, we usually do not hand-write this gradient. Instead, we write an equivalent loss and let autodiff compute gradients:
-
-```python {1-2}
-policy_loss = -(log_probs * returns).mean()
-policy_loss.backward()
-optimizer.step()
-```
-
-Why the minus sign? Mathematically we want to maximize $\log \pi_\theta(a_t\mid s_t)G_t$, but PyTorch optimizers minimize losses. So we negate it.
-
-**If $G_t$ is large, gradient descent increases the log probability of the action; if $G_t$ is small or negative, it decreases that action's probability.**
-
-## Step 4: Value Functions, Baselines, and Advantages
-
-Vanilla REINFORCE can work, but its **variance is large** (review: [the fatal flaw of REINFORCE](../chapter05_policy_gradient/reinforce)). The reason is that $G_t$ only tells us "how much reward came after this step," but does not say "is that good for this particular state."
-
-For example, suppose after some step in LunarLander we see $G_t=80$. That sounds good, but if in the same state a typical policy averages $120$, then this action is below average. We need a reference point, and that reference is the [state-value function](../chapter03_mdp/value-bellman):
-
-$$
-V^\pi(s_t)
-= \mathbb{E}_{\pi}[G_t \mid s_t]
-$$
-
-$V^\pi(s_t)$ means: if we are at state $s_t$ now and continue following policy $\pi$, what return do we get on average?
-
-The [action-value function](../chapter03_mdp/value-q) additionally conditions on the action:
-
-$$
-Q^\pi(s_t,a_t)
-= \mathbb{E}_{\pi}[G_t \mid s_t,a_t]
-$$
-
-$Q^\pi(s_t,a_t)$ means: at state $s_t$, first take action $a_t$, then follow policy $\pi$ afterward; what return do we get on average?
-
-Subtract the two to obtain the [advantage function](../chapter06_actor_critic/advantage-function):
-
-$$
-A^\pi(s_t,a_t)
-= Q^\pi(s_t,a_t) - V^\pi(s_t)
-$$
-
-The meaning is simple:
-
-**How much better is this action than an average action at this state?**
-
-If $A_t>0$, the action is better than average and its probability should increase. If $A_t<0$, it is worse than average and its probability should decrease. If $A_t=0$, it is roughly average.
-
-In practice we do not know the true $V^\pi$ and $Q^\pi$. We estimate $V_\theta(s_t)$ with a Critic network, then approximate the advantage using returns or GAE:
-
-$$
-\hat{A}_t \approx G_t - V_\theta(s_t)
-$$
-
-In code, this corresponds to:
-
-<PpoCodeFocus focus="advantages" />
-
-By default, this shows **[D] advantage estimation** and **[E] value-function training** together: `advantages` tells the Actor how to change, while `returns` provides supervision targets for the Critic's `value_loss`.
-
-Without GAE, the simplest approximation is `advantages = returns - values`. In this chapter's code we compute `advantages` using GAE; the next section derives GAE in detail. For now, interpret it as "the part that is better or worse than what the Critic expected."
-
-Why can we replace $G_t$ with $A_t$? Because subtracting a baseline $b(s_t)$ that depends only on the state does not change the expected gradient (review: [baseline variance reduction](../chapter05_policy_gradient/pg-improvements)):
-
-$$
-\mathbb{E}_{a_t\sim\pi_\theta}
-\left[
-\nabla_\theta\log\pi_\theta(a_t\mid s_t)b(s_t)
-\right]
-= b(s_t)\nabla_\theta
-\sum_{a_t}\pi_\theta(a_t\mid s_t)
-= b(s_t)\nabla_\theta 1
-= 0
-$$
-
-This derivation shows: **subtracting a baseline does not change the expected gradient direction; it only reduces variance.** Therefore the policy gradient is often written in the Actor-Critic form:
-
-$$
-\nabla_\theta J(\theta)
-= \mathbb{E}_t
-\left[
-\nabla_\theta \log \pi_\theta(a_t\mid s_t)\hat{A}_t
-\right]
-$$
-
-This is the **division of labor between Actor and Critic**: the Critic estimates $V_\theta(s_t)$ to provide the "average level" of the current state, and the Actor adjusts action probabilities according to the advantage $\hat{A}_t$.
-
-## Step 5: The Limits of Vanilla Policy Gradients
-
-At this point we have an algorithm that looks complete:
+Actor-Critic policy gradients give us a seemingly complete training pipeline: sample with the current policy → compute advantages → update the policy using $\log \pi_\theta(a_t\mid s_t)\hat{A}_t$ (if any of these concepts are unfamiliar, see the [Appendix](#appendix-deriving-policy-gradients-and-advantage-from-scratch)).
 
 ```mermaid
 flowchart LR
@@ -395,19 +120,9 @@ flowchart LR
     B --> C["Update policy using log_prob × advantage"]
 ```
 
-The problem is that vanilla policy gradients have a requirement:
+The problem is that this pipeline has a hard requirement: **the data used to update the policy should ideally be collected by that same policy.** This property is called **on-policy**. In the formula, the expectation is $\mathbb{E}_{\tau\sim\pi_\theta}[\cdots]$, meaning the data should come from the **current policy** $\pi_\theta$. But after one gradient update, parameters change from $\theta_{\text{old}}$ to $\theta$. The trajectories we just collected no longer come from the new policy; they come from the **old policy** $\pi_{\text{old}}$.
 
-**the data used to update the policy should ideally be collected by that same policy.**
-
-This property is called **on-policy**. In the formula, the expectation is:
-
-$$
-\mathbb{E}_{\tau\sim\pi_\theta}[\cdots]
-$$
-
-which means the data should come from the **current policy** $\pi_\theta$. But after one gradient update, parameters change from $\theta_{\text{old}}$ to $\theta$. The trajectories we just collected no longer come from the new policy; they come from the **old policy** $\pi_{\text{old}}$.
-
-If we use each batch only once, training becomes extremely wasteful. Collecting, say, 2048 steps of environment interaction can be expensive, especially for robotics, game simulators, and LLM answer generation. Naturally, we ask:
+If we use each batch only once, training becomes extremely wasteful. Collecting 2048 steps of environment interaction is expensive, especially in robotics, game simulators, and LLM answer generation. Naturally, we ask:
 
 > Can we reuse data collected by the old policy to update the new policy for multiple epochs?
 
@@ -421,11 +136,11 @@ In the learning-oriented PPO skeleton, `collect_rollout` deliberately stores the
 
 This `old_logprobs` is $\log \pi_{\text{old}}(a_t\mid s_t)$. During updates, we recompute the same state-action pairs under the new policy to get `new_logprobs`. Comparing them tells us how far the policy has moved. Importance sampling is the tool that answers whether "old data can still be used."
 
-## Step 6: Importance Sampling
+## Step 1: Importance Sampling
 
 The previous issue is that vanilla policy gradients want data collected by $\pi_\theta$. Can we use data collected by $\pi_{\text{old}}$ to evaluate and improve a new policy? Yes, via **importance sampling**.
 
-### 6.1 The Importance Sampling Identity
+### 1.1 The Importance Sampling Identity
 
 The core identity is: for any function $f$,
 
@@ -441,7 +156,7 @@ $$= \sum_a \pi_{\text{old}}(a|s) \cdot \frac{\pi_\theta(a|s)}{\pi_{\text{old}}(a
 
 The identity holds. The **intuition** is: we want the expectation of $f$ under the "new world" $\pi_\theta$, but we only have samples from the "old world" $\pi_{\text{old}}$. The fix is to **reweight each sample**. If the new world is more likely to produce this action than the old world, the weight is greater than 1; otherwise it is less than 1. The weight is exactly $\frac{\pi_\theta}{\pi_{\text{old}}}$.
 
-### 6.2 Policy Ratio
+### 1.2 Policy Ratio
 
 Define the **policy ratio**:
 
@@ -453,7 +168,7 @@ In code, we compute it using the exponential of the log-prob difference, which i
 
 **$r_t=1$ means the new and old policies assign the same probability to this action**. $r_t>1$ means the new policy is more inclined to take this action; $r_t<1$ means the opposite.
 
-### 6.3 Surrogate Objective
+### 1.3 Surrogate Objective
 
 Apply importance sampling to the policy-gradient objective to get the **surrogate objective**:
 
@@ -477,7 +192,7 @@ The check is straightforward: when $\theta=\theta_{\text{old}}$, we have $r_t=1$
 
 But **once $\theta$ moves away from $\theta_{\text{old}}$, the two objectives diverge.** The farther away the new policy is, the less reliable the surrogate becomes. That is the next problem to solve.
 
-## Step 7: From the Surrogate Objective to PPO-Clip
+## Step 2: From the Surrogate Objective to PPO-Clip
 
 We now have a key expression:
 
@@ -658,7 +373,7 @@ flowchart LR
 
 **With $\varepsilon=0.2$, after each update, the probability assigned to an action is constrained to remain near the old policy.** This "safety rail" ensures that even if gradient estimates are noisy, the policy will not jump too far in a single step.
 
-## Step 8: PPO Is Not Only a Loss Function
+## Step 3: PPO Is Not Only a Loss Function
 
 At this point it is easy to form a misconception: does understanding PPO mean understanding the PPO loss? The answer is: **no**.
 
@@ -694,7 +409,7 @@ flowchart TD
 
 The reason "loss" matters is that neural networks update parameters through backpropagation. **To affect parameters, PPO's ideas must become a differentiable objective.** That is why we emphasize PPO loss, but you should not shrink PPO into the loss alone.
 
-## Step 9: How PPO Appears in Code
+## Step 4: How PPO Appears in Code
 
 If we keep only PPO's **core policy update**, the landing point is the following lines:
 
@@ -761,7 +476,7 @@ TRPO simply reminds us: PPO's "Proximal" comes from trust-region thinking, but t
 
 </details>
 
-## Step 10: The Full PPO Loss
+## Step 5: The Full PPO Loss
 
 In real training, PPO does not only optimize the clipped surrogate; it trains the Critic and preserves exploration. To avoid symbol confusion, **separate two things**:
 
@@ -831,7 +546,7 @@ Why include entropy? Clipping stabilizes training, but it can also cause a side 
 
 In code: `entropy_bonus = entropy.mean()`. Note the minus sign in the total loss: `- ent_coef * entropy_bonus`, because we want to **maximize entropy**, which is equivalent to subtracting it when minimizing `loss`.
 
-### 10.4 How the Three Terms Work Together
+### How the Three Terms Work Together
 
 ```mermaid
 flowchart TD
@@ -867,7 +582,7 @@ Each term does a different job:
 
 They collaborate through the shared Actor-Critic network. In [ppo_from_scratch.py](../../../code/chapter07_ppo/ppo_from_scratch.py), the Actor and Critic share the same backbone network (`shared_net`), so one backpropagation updates both.
 
-### 10.5 Hyperparameter Summary
+### Hyperparameter Summary
 
 | Symbol        | Name                   | Typical Value | Role                                           | Code Parameter |
 | ------------- | ---------------------- | ------------- | ---------------------------------------------- | -------------- |
@@ -879,7 +594,7 @@ They collaborate through the shared Actor-Critic network. In [ppo_from_scratch.p
 | $T$           | rollout length         | 2048          | how many steps to collect per rollout          | `n_steps`      |
 | $K$           | number of epochs       | 10            | how many passes over the same data batch       | `n_epochs`     |
 
-## Step 11: The Complete PPO Algorithm
+## Step 6: The Complete PPO Algorithm
 
 Putting everything together, **the PPO training loop** is:
 
@@ -962,9 +677,197 @@ In practice, $K$ is often 3-10, and clipping can keep the bias within an accepta
 
 ---
 
-At this point, you have the **complete mathematical picture of PPO**: from policy gradients, to the importance-sampling surrogate objective, to the **PPO-Clip policy loss formed by `ratio`, `clamp`, and `min`**, and finally to the **total loss that can be backpropagated directly**.
+At this point, you have the **complete mathematical picture of PPO**: from the importance-sampling surrogate objective, to the **PPO-Clip policy loss formed by `ratio`, `clamp`, and `min`**, and finally to the **total loss that can be backpropagated directly**.
 
 The next two sections each go deeper into a key detail:
 
 - **Intuition and experiments for clipping**: [Trust Region and Clipping](./trust-region-clipping)
 - **GAE derivation and its use in reward models and LLM alignment**: [GAE, Reward Models, and LLM Alignment](./gae-reward-model)
+
+## Appendix: Deriving Policy Gradients and Advantage from Scratch
+
+If the policy gradient, advantage function, or Actor-Critic framework in the main derivation felt unfamiliar, this appendix starts from the most fundamental RL notation and builds up to PPO's starting point step by step.
+
+### A.1 A Probabilistic View of Reinforcement Learning
+
+The most basic reinforcement-learning loop is:
+
+```mermaid
+flowchart LR
+    S["Observe state<br/>s_t"] --> P["Policy chooses action<br/>a_t"]
+    P --> E["Environment returns<br/>reward r_t<br/>next state s_{t+1}"]
+```
+
+Here $t$ is the time step. $s_t$ is the state observed at step $t$, $a_t$ is the action taken, and $r_t$ is the immediate feedback from the environment. **Reinforcement learning is not about a single reward; it is about the long-term result produced by a sequence of decisions.**
+
+We typically formalize the environment as a [Markov Decision Process (MDP)](../chapter03_mdp/mdp):
+
+$$
+\mathcal{M} = (\mathcal{S}, \mathcal{A}, P, R, \gamma)
+$$
+
+Each symbol means:
+
+- $\mathcal{S}$: state space. $\mathcal{A}$: action space.
+- $P(s_{t+1}\mid s_t,a_t)$: transition probability.
+- $R(s_t,a_t)$: reward function.
+- $\gamma$: [discount factor](../chapter03_mdp/mdp).
+
+**The policy is what we train.** In symbols:
+
+$$
+\pi_\theta(a_t \mid s_t)
+$$
+
+In code, the Actor outputs action probabilities, then wraps them into a distribution object `dist`:
+
+<PpoCodeFocus focus="dist" />
+
+`action_probs` is $\pi_\theta(\cdot \mid s_t)$, the probability distribution over all actions. `dist` provides several commonly-used methods:
+
+| Code                    | Meaning                               | Math Counterpart                      |
+| ----------------------- | ------------------------------------- | ------------------------------------- |
+| `dist.sample()`         | sample an action from the distribution | $a_t \sim \pi_\theta(\cdot \mid s_t)$ |
+| `dist.log_prob(action)` | log probability of the sampled action | $\log \pi_\theta(a_t \mid s_t)$       |
+| `dist.entropy()`        | how random the distribution is        | $H[\pi_\theta]$                       |
+
+If we run from the initial state until termination, we obtain a trajectory:
+
+$$
+\tau = (s_0,a_0,r_0,s_1,a_1,r_1,\ldots,s_T)
+$$
+
+Given a policy $\pi_\theta$, the probability of seeing trajectory $\tau$ is:
+
+$$
+p_\theta(\tau)
+= \rho_0(s_0)
+\prod_{t=0}^{T-1}
+\pi_\theta(a_t\mid s_t)
+P(s_{t+1}\mid s_t,a_t)
+$$
+
+The crucial observation: **in this product, only $\pi_\theta(a_t\mid s_t)$ contains the trainable parameters $\theta$.** This is why policy-gradient methods only need the action `log_prob`.
+
+### A.2 Discounted Return
+
+If we maximize the immediate reward only, the agent becomes myopic. Reinforcement learning is about maximizing a **sequence of future rewards**:
+
+$$
+G_t = r_t + \gamma r_{t+1} + \gamma^2 r_{t+2} + \cdots = \sum_{k=0}^{T-t-1}\gamma^k r_{t+k}
+$$
+
+Discounted return has an **implementation-friendly recursion**:
+
+$$
+G_t = r_t + \gamma G_{t+1}
+$$
+
+In code we compute it backward:
+
+```python {4}
+G = 0
+returns = []
+for reward in reversed(rewards):
+    G = reward + gamma * G
+    returns.insert(0, G)
+```
+
+The policy objective can be written as:
+
+$$
+J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta}\left[\sum_{t=0}^{T-1}\gamma^t r_t\right]
+$$
+
+$J(\theta)$ reads as "how good is the policy" — we maximize not the reward from a single run, but the **long-run return in expectation**.
+
+### A.3 The Policy Gradient Theorem
+
+How do we adjust $\theta$ to increase $J(\theta)$? Write the objective as a sum over all trajectories:
+
+$$
+J(\theta) = \sum_{\tau} p_\theta(\tau)R(\tau)
+$$
+
+Differentiate with respect to $\theta$, using the identity $\nabla_\theta p_\theta(\tau) = p_\theta(\tau)\nabla_\theta \log p_\theta(\tau)$:
+
+$$
+\nabla_\theta J(\theta) = \mathbb{E}_{\tau\sim\pi_\theta}\left[\nabla_\theta \log p_\theta(\tau)R(\tau)\right]
+$$
+
+Expanding $\log p_\theta(\tau)$ and differentiating makes $P$ and $\rho_0$ vanish, yielding the REINFORCE gradient:
+
+$$
+\nabla_\theta J(\theta) = \mathbb{E}_{\tau\sim\pi_\theta}\left[\sum_{t=0}^{T-1}\nabla_\theta \log \pi_\theta(a_t\mid s_t)G_t\right]
+$$
+
+In code we write an equivalent loss and let autodiff compute gradients:
+
+```python {1-2}
+policy_loss = -(log_probs * returns).mean()
+policy_loss.backward()
+```
+
+### A.4 Value Functions, Baselines, and Advantages
+
+Vanilla REINFORCE works but has **high variance**. The reason is that $G_t$ only tells us "how much reward came after this step," but does not say "is that good for this particular state."
+
+For example, suppose after some step in LunarLander we see $G_t=80$. That sounds good, but if in the same state a typical policy averages $120$, then this action is below average. We need a reference point, and that reference is the [state-value function](../chapter03_mdp/value-bellman):
+
+$$
+V^\pi(s_t) = \mathbb{E}_{\pi}[G_t \mid s_t]
+$$
+
+$V^\pi(s_t)$ means: if we are at state $s_t$ now and continue following policy $\pi$, what return do we get **on average**? It measures "how good is this state itself," regardless of which action we pick.
+
+The [action-value function](../chapter03_mdp/value-q) additionally conditions on the action:
+
+$$
+Q^\pi(s_t,a_t) = \mathbb{E}_{\pi}[G_t \mid s_t,a_t]
+$$
+
+$Q^\pi(s_t,a_t)$ means: at state $s_t$, **first take action $a_t$**, then follow policy $\pi$ afterward; what return do we get on average? It has one more piece of information than $V^\pi$ — "what happens if I pick this specific action in this state."
+
+Subtracting the two gives the [advantage function](../chapter06_actor_critic/advantage-function):
+
+$$
+A^\pi(s_t,a_t) = Q^\pi(s_t,a_t) - V^\pi(s_t)
+$$
+
+The meaning is simple:
+
+**How much better is this action than an average action at this state?**
+
+- $A_t > 0$: this action is better than average, so increase its probability
+- $A_t < 0$: this action is worse than average, so decrease its probability
+- $A_t = 0$: it is roughly average, no special adjustment needed
+
+Why does $Q - V$ measure "better than average"? Because $V^\pi(s_t)$ is the average return across all actions at state $s_t$, while $Q^\pi(s_t,a_t)$ is the return from choosing a specific action $a_t$. Subtracting removes the "how good is this state" part, leaving only "how much better was it to pick this action versus picking randomly."
+
+In practice we do not know the true $V^\pi$ and $Q^\pi$. We estimate $V_\theta(s_t)$ with a Critic network, then approximate the advantage using returns or GAE:
+
+$$
+\hat{A}_t \approx G_t - V_\theta(s_t)
+$$
+
+Here $G_t$ is the actual return we got, and $V_\theta(s_t)$ is what the Critic thinks this state "should" yield. If the actual return beats the prediction ($G_t > V_\theta(s_t)$), this action is better than average and $\hat{A}_t$ is positive; otherwise $\hat{A}_t$ is negative.
+
+In code:
+
+<PpoCodeFocus focus="advantages" />
+
+Without GAE, the simplest approximation is `advantages = returns - values`. In this chapter's code we compute `advantages` using GAE; the next section derives GAE in detail. For now, interpret it as "the part that is better or worse than what the Critic expected."
+
+Why can we replace $G_t$ with $A_t$? Because subtracting a baseline $b(s_t)$ that depends only on the state does not change the expected gradient (review: [baseline variance reduction](../chapter05_policy_gradient/pg-improvements)):
+
+$$
+\mathbb{E}_{a_t\sim\pi_\theta}\left[\nabla_\theta\log\pi_\theta(a_t\mid s_t)b(s_t)\right] = b(s_t)\nabla_\theta\sum_{a_t}\pi_\theta(a_t\mid s_t) = b(s_t)\nabla_\theta 1 = 0
+$$
+
+This derivation shows: **subtracting a baseline does not change the expected gradient direction; it only reduces variance.** Therefore the policy gradient is often written in the Actor-Critic form:
+
+$$
+\nabla_\theta J(\theta) = \mathbb{E}_t\left[\nabla_\theta \log \pi_\theta(a_t\mid s_t)\hat{A}_t\right]
+$$
+
+This is the **division of labor between Actor and Critic**: the Critic estimates $V_\theta(s_t)$ to provide the "average level" of the current state, and the Actor adjusts action probabilities according to the advantage $\hat{A}_t$.

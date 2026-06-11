@@ -1247,9 +1247,13 @@ watch(
 
   <ClientOnly>
     <Transition name="ct-route-loading-fade">
-      <div v-if="routeLoading" class="ct-route-loading" aria-live="polite">
+      <div
+        v-if="routeLoading"
+        class="ct-route-loading"
+        aria-label="页面加载中"
+        aria-live="polite"
+      >
         <span class="ct-route-loading-spinner" aria-hidden="true"></span>
-        <span class="ct-route-loading-text">加载中</span>
       </div>
     </Transition>
   </ClientOnly>
@@ -1590,53 +1594,35 @@ watch(
 
 .ct-route-loading {
   position: fixed;
-  top: calc(var(--vp-nav-height, 64px) + 14px);
-  left: 50%;
-  z-index: 80;
-  display: inline-flex;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border: 1px solid rgba(63, 81, 181, 0.12);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: rgba(29, 29, 31, 0.72);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1;
-  transform: translateX(-50%);
-  -webkit-backdrop-filter: saturate(180%) blur(16px);
-  backdrop-filter: saturate(180%) blur(16px);
+  justify-content: center;
+  background: #fff;
 }
 
 .ct-route-loading-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(63, 81, 181, 0.18);
+  width: 42px;
+  height: 42px;
+  border: 4px solid rgba(63, 81, 181, 0.16);
   border-top-color: var(--vp-c-brand-1);
   border-radius: 50%;
-  animation: ct-route-loading-spin 0.72s linear infinite;
+  animation: ct-route-loading-spin 0.76s linear infinite;
 }
 
 .ct-route-loading-fade-enter-active,
 .ct-route-loading-fade-leave-active {
-  transition:
-    opacity 0.16s ease,
-    transform 0.16s ease;
+  transition: opacity 0.14s ease;
 }
 
 .ct-route-loading-fade-enter-from,
 .ct-route-loading-fade-leave-to {
   opacity: 0;
-  transform: translate(-50%, -6px);
 }
 
 .dark .ct-route-loading {
-  border-color: rgba(154, 168, 255, 0.18);
-  background: rgba(24, 24, 27, 0.88);
-  color: rgba(245, 245, 247, 0.76);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  background: #1b1b1f;
 }
 
 .dark .ct-route-loading-spinner {
