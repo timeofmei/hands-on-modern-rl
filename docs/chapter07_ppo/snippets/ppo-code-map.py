@@ -7,26 +7,26 @@ from torch.distributions import Categorical
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim):
+    def __init__(self, obs_dim, act_dim, hidden=64):
         super().__init__()
         self.backbone = nn.Sequential(
-            nn.Linear(obs_dim, 64),
+            nn.Linear(obs_dim, hidden),
             nn.Tanh(),
-            nn.Linear(64, 64),
+            nn.Linear(hidden, hidden),
             nn.Tanh(),
         )
-        self.actor = nn.Linear(64, act_dim)
-        self.critic = nn.Linear(64, 1)
+        self.actor_head = nn.Linear(hidden, act_dim)
+        self.critic_head = nn.Linear(hidden, 1)
 
     # [A] 策略和值函数：Actor 输出动作概率，Critic 输出状态价值
     def forward(self, obs):
         h = self.backbone(obs)
-        logits = self.actor(h)
+        logits = self.actor_head(h)
         action_probs = F.softmax(logits, dim=-1)
-        value = self.critic(h).squeeze(-1)
+        value = self.critic_head(h).squeeze(-1)
         return action_probs, value
 
-    # [B] 采样动作：从策略分布中抽动作，并保存旧策略 log_prob
+    # [B] 动作采样：根据策略分布选择动作，并记录 log_prob
     def act(self, obs):
         action_probs, value = self.forward(obs)
         dist = Categorical(action_probs)
@@ -42,7 +42,7 @@ class ActorCritic(nn.Module):
         return new_logprobs, values, entropy
 
 
-# [C] 采样一批 on-policy 数据：这些数据来自“当前策略”
+# [C] 采样一批 on-policy 数据：这些数据来自"当前策略"
 def collect_rollout(env, model, steps=2048, device="cpu"):
     obs, _ = env.reset()
     batch = {k: [] for k in ["states", "actions", "rewards", "dones", "old_logprobs", "values"]}
@@ -74,7 +74,7 @@ def collect_rollout(env, model, steps=2048, device="cpu"):
     }
 
 
-# [D] 计算优势：这个动作比当前状态的平均水平好多少
+# [D] 计算优势：GAE（Generalized Advantage Estimation）
 def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
     advantages = torch.zeros_like(rewards)
     last_advantage = 0.0
@@ -92,13 +92,32 @@ def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
     return advantages, returns
 
 
-# [E] PPO 更新：ratio、clip、min 和总 loss 都在这里
+# [E] PPO 损失函数（DeepSpeed-Chat / VeRL / OpenRLHF 风格）
+def actor_loss_fn(new_logprobs, old_logprobs, advantages, clip_eps=0.2):
+    ratio = torch.exp(new_logprobs - old_logprobs)
+    surr1 = ratio * advantages
+    surr2 = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps) * advantages
+    policy_loss = -torch.min(surr1, surr2).mean()
+    return policy_loss
+
+
+def critic_loss_fn(new_values, old_values, returns, clip_eps_value=0.2):
+    values_clipped = torch.clamp(
+        new_values, old_values - clip_eps_value, old_values + clip_eps_value
+    )
+    vf_loss1 = (new_values - returns) ** 2
+    vf_loss2 = (values_clipped - returns) ** 2
+    vf_loss = 0.5 * torch.max(vf_loss1, vf_loss2).mean()
+    return vf_loss
+
+
 def ppo_update(model, optimizer, batch, advantages, returns,
                clip_eps=0.2, vf_coef=0.5, ent_coef=0.01,
                epochs=10, minibatch_size=64):
     states = batch["states"]
     actions = batch["actions"]
     old_logprobs = batch["old_logprobs"]
+    old_values = batch["values"]
     batch_size = states.size(0)
 
     for _ in range(epochs):
@@ -107,16 +126,11 @@ def ppo_update(model, optimizer, batch, advantages, returns,
             mb = indices[start:start + minibatch_size]
 
             new_logprobs, new_values, entropy = model.evaluate(states[mb], actions[mb])
-            ratio = torch.exp(new_logprobs - old_logprobs[mb])
 
-            surr1 = ratio * advantages[mb]
-            clipped_ratio = torch.clamp(ratio, 1.0 - clip_eps, 1.0 + clip_eps)
-            surr2 = clipped_ratio * advantages[mb]
-            policy_loss = -torch.min(surr1, surr2).mean()
-
-            value_loss = F.mse_loss(new_values, returns[mb])
+            pg_loss = actor_loss_fn(new_logprobs, old_logprobs[mb], advantages[mb], clip_eps)
+            vf_loss = critic_loss_fn(new_values, old_values[mb], returns[mb], clip_eps)
             entropy_bonus = entropy.mean()
-            loss = policy_loss + vf_coef * value_loss - ent_coef * entropy_bonus
+            loss = pg_loss + vf_coef * vf_loss - ent_coef * entropy_bonus
 
             optimizer.zero_grad()
             loss.backward()

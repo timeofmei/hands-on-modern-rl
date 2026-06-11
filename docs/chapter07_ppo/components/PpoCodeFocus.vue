@@ -24,43 +24,46 @@ const suppressHover = ref(false)
 const codePre = ref(null)
 
 const segments = [
-  { id: 'A', label: '策略和值函数', range: [21, 27] },
-  { id: 'B', label: '采样与 log_prob', range: [29, 42] },
-  { id: 'C', label: '采样旧数据', range: [45, 74] },
+  { id: 'A', label: '策略与价值计算', range: [21, 27] },
+  { id: 'B', label: '动作采样', range: [29, 42] },
+  { id: 'C', label: '经验收集', range: [45, 74] },
   { id: 'D', label: '优势估计', range: [77, 92] },
-  { id: 'E', label: 'PPO 更新', range: [95, 123] },
-  { id: 'F', label: '训练循环', range: [126, 135] }
+  { id: 'E', label: '损失计算', range: [95, 137] },
+  { id: 'F', label: '训练循环', range: [140, 149] }
 ]
 
 const focusMap = {
   overview: {
-    title: '完整 PPO 代码地图',
+    title: 'PPO 实现结构总览',
     active: ['A', 'B', 'C', 'D', 'E', 'F'],
     compactRanges: [
       [21, 42],
       [77, 92],
-      [109, 123],
-      [126, 135]
+      [96, 101],
+      [114, 137],
+      [140, 149]
     ],
     highlight: [
-      24, 25, 31, 32, 33, 34, 86, 87, 90, 91, 110, 112, 113, 114, 115, 117, 119,
-      121, 122, 123, 132, 133, 134
+      25, 26, 32, 33, 34, 35, 86, 87, 90, 91,
+      97, 98, 99, 100,
+      130, 131, 132, 133, 135, 136, 137,
+      146, 147, 148, 149
     ]
   },
   dist: {
     title: '动作分布 dist / log_prob',
     active: ['A', 'B'],
     compactRanges: [[21, 42]],
-    highlight: [24, 25, 31, 32, 33, 34, 38, 39, 40, 41]
+    highlight: [25, 26, 32, 33, 34, 35, 39, 40, 41, 42]
   },
   advantages: {
     title: '优势估计 advantages 与 value_loss',
     active: ['D', 'E'],
     compactRanges: [
       [77, 92],
-      [117, 117]
+      [108, 110]
     ],
-    highlight: [86, 87, 90, 91, 117]
+    highlight: [86, 87, 90, 91, 108, 109, 110]
   },
   oldLogprobs: {
     title: '旧策略概率 old_logprobs',
@@ -70,33 +73,33 @@ const focusMap = {
   },
   ratio: {
     title: '策略比率 ratio',
-    active: ['C', 'E'],
-    compactRanges: [[95, 112]],
-    highlight: [101, 109, 110, 112]
+    active: ['E'],
+    compactRanges: [[95, 101]],
+    highlight: [97, 98]
   },
   surr1: {
     title: '未裁剪代理目标 surr1',
     active: ['E'],
-    compactRanges: [[109, 115]],
-    highlight: [112]
+    compactRanges: [[95, 101]],
+    highlight: [98]
   },
   clip: {
     title: 'PPO-Clip 更新核心',
     active: ['E'],
-    compactRanges: [[109, 119]],
-    highlight: [110, 112, 113, 114, 115]
+    compactRanges: [[95, 101]],
+    highlight: [97, 98, 99, 100]
   },
   loss: {
     title: '总 loss 与反向传播',
     active: ['E'],
-    compactRanges: [[117, 123]],
-    highlight: [117, 118, 119, 121, 122, 123]
+    compactRanges: [[128, 137]],
+    highlight: [130, 131, 132, 133, 135, 136, 137]
   },
   train: {
     title: 'PPO 训练循环',
     active: ['F'],
-    compactRanges: [[126, 135]],
-    highlight: [132, 133, 134]
+    compactRanges: [[140, 149]],
+    highlight: [146, 147, 148, 149]
   }
 }
 
