@@ -24,12 +24,18 @@ jobs:
           version="${tag#v}"
           asset_name="hands-on-modern-rl-open-textbook-v${version}.pdf"
           en_asset_name="hands-on-modern-rl-open-textbook-en-v${version}.pdf"
+          epub_asset_name="hands-on-modern-rl-open-textbook-v${version}.epub"
+          en_epub_asset_name="hands-on-modern-rl-open-textbook-en-v${version}.epub"
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
           echo "asset_name=${asset_name}" >> "$GITHUB_OUTPUT"
           echo "en_asset_name=${en_asset_name}" >> "$GITHUB_OUTPUT"
+          echo "epub_asset_name=${epub_asset_name}" >> "$GITHUB_OUTPUT"
+          echo "en_epub_asset_name=${en_epub_asset_name}" >> "$GITHUB_OUTPUT"
           echo "pdf_path=docs/.vitepress/dist/${asset_name}" >> "$GITHUB_OUTPUT"
           echo "en_pdf_path=docs/.vitepress/dist/${en_asset_name}" >> "$GITHUB_OUTPUT"
+          echo "epub_path=docs/.vitepress/dist/${epub_asset_name}" >> "$GITHUB_OUTPUT"
+          echo "en_epub_path=docs/.vitepress/dist/${en_epub_asset_name}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -81,6 +87,13 @@ jobs:
           PDF_OPTIMIZE_PROFILE: default
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
+      - name: Build Chinese EPUB
+        run: npm run epub:build
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EPUB_FILE_NAME: ${{ steps.release.outputs.epub_asset_name }}
+          PUPPETEER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
       - name: Upload Chinese LaTeX debug logs
         if: failure()
         uses: actions/upload-artifact@v4
@@ -104,6 +117,14 @@ jobs:
           PDF_AUTHORS: WalkingLabs; Sanbu
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
+      - name: Build English EPUB
+        run: npm run epub:build
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          EPUB_FILE_NAME: ${{ steps.release.outputs.en_epub_asset_name }}
+          PDF_LOCALE: en
+          PUPPETEER_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
       - name: Upload English LaTeX debug logs
         if: failure()
         uses: actions/upload-artifact@v4
@@ -114,53 +135,71 @@ jobs:
             temp/latex-book/*.log
           if-no-files-found: ignore
 
-      - name: Verify PDF assets
+      - name: Verify PDF and EPUB assets
         run: |
           test -s "${PDF_PATH}"
           test -s "${EN_PDF_PATH}"
+          test -s "${EPUB_PATH}"
+          test -s "${EN_EPUB_PATH}"
           echo "Chinese PDF:"
           pdfinfo "${PDF_PATH}" | sed -n '1,18p'
           echo "English PDF:"
           pdfinfo "${EN_PDF_PATH}" | sed -n '1,18p'
+          echo "Chinese EPUB:"
+          ls -lh "${EPUB_PATH}"
+          echo "English EPUB:"
+          ls -lh "${EN_EPUB_PATH}"
         env:
           PDF_PATH: ${{ steps.release.outputs.pdf_path }}
           EN_PDF_PATH: ${{ steps.release.outputs.en_pdf_path }}
+          EPUB_PATH: ${{ steps.release.outputs.epub_path }}
+          EN_EPUB_PATH: ${{ steps.release.outputs.en_epub_path }}
 
       - name: Write release notes
         env:
           TAG_NAME: ${{ steps.release.outputs.tag }}
           PDF_ASSET_NAME: ${{ steps.release.outputs.asset_name }}
           EN_PDF_ASSET_NAME: ${{ steps.release.outputs.en_asset_name }}
+          EPUB_ASSET_NAME: ${{ steps.release.outputs.epub_asset_name }}
+          EN_EPUB_ASSET_NAME: ${{ steps.release.outputs.en_epub_asset_name }}
         run: |
-          pdf_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${PDF_ASSET_NAME}"
-          en_pdf_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${EN_PDF_ASSET_NAME}"
+          pdf_url=”https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${PDF_ASSET_NAME}”
+          en_pdf_url=”https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${EN_PDF_ASSET_NAME}”
+          epub_url=”https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${EPUB_ASSET_NAME}”
+          en_epub_url=”https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/${EN_EPUB_ASSET_NAME}”
           cat > release-notes.md <<EOF
-          # Hands-On Modern RL: Open Textbook PDF Release ${TAG_NAME}
+          # Hands-On Modern RL: Open Textbook Release ${TAG_NAME}
 
-          This release publishes the book-form PDF edition of **Hands-On Modern RL** in both Chinese and English. The PDF is generated from the open course repository and typeset as a textbook edition for offline reading, classroom use, and citation-friendly distribution.
+          This release publishes the book-form edition of **Hands-On Modern RL** in both PDF and EPUB formats, in both Chinese and English. The books are generated from the open course repository and typeset as a textbook edition for offline reading, classroom use, and citation-friendly distribution.
 
-          本版本发布《Hands-On Modern RL：现代强化学习实战》的开放教材 PDF 版，并同时提供中文与英文两个版本。PDF 由开源课程仓库构建生成，采用书籍版排版，面向离线阅读、课堂教学与可引用分发，而不是网页打印导出。
+          本版本发布《Hands-On Modern RL：现代强化学习实战》的开放教材，同时提供 PDF 与 EPUB 两种格式，以及中文与英文两个版本。教材由开源课程仓库构建生成，采用书籍版排版，面向离线阅读、课堂教学与可引用分发。
 
           ## PDF Downloads / PDF 下载
 
           - [Chinese edition / 中文版 PDF](${pdf_url})
           - [English edition / 英文版 PDF](${en_pdf_url})
 
+          ## EPUB Downloads / EPUB 下载
+
+          - [Chinese edition / 中文版 EPUB](${epub_url})
+          - [English edition / 英文版 EPUB](${en_epub_url})
+
           ## About This Edition / 版本说明
 
-          **English.** This edition covers a practice-first path through modern reinforcement learning: classic control, value and policy methods, deep RL, preference alignment, RLHF-style post-training, DPO, GRPO, RLVR, agentic RL, and multimodal reinforcement learning topics. The release also introduces a complete English PDF built from \`docs/en\`, aligned with the Chinese course structure.
+          **English.** This edition covers a practice-first path through modern reinforcement learning: classic control, value and policy methods, deep RL, preference alignment, RLHF-style post-training, DPO, GRPO, RLVR, agentic RL, and multimodal reinforcement learning topics. The release also introduces a complete English edition built from \`docs/en\`, aligned with the Chinese course structure.
 
-          **中文。** 本版本围绕“从实践进入原理”的学习路线展开：从经典控制、价值方法与策略方法，到深度强化学习、偏好对齐、RLHF 式后训练、DPO、GRPO、RLVR、Agentic RL 与多模态强化学习等主题。本次发布同时提供基于 \`docs/en\` 构建的完整英文 PDF，并与中文课程结构保持对应。
+          **中文。** 本版本围绕”从实践进入原理”的学习路线展开：从经典控制、价值方法与策略方法，到深度强化学习、偏好对齐、RLHF 式后训练、DPO、GRPO、RLVR、Agentic RL 与多模态强化学习等主题。本次发布同时提供基于 \`docs/en\` 构建的完整英文版，并与中文课程结构保持对应。
 
-          ## Textbook PDF Features / 教材版 PDF 特性
+          ## Textbook Features / 教材特性
 
           - Book-style LaTeX typesetting, not a browser print export.
           - Dedicated front matter, chapter openings, page headers, footers, and page numbers.
           - Clickable table of contents and PDF bookmarks/outlines.
-          - Rendered mathematical notation, diagrams, Mermaid figures, SVG assets, and selected animated assets converted for static PDF reading.
-          - Optimized PDF structure and embedded fonts for release download, archiving, and offline study.
+          - EPUB format optimized for e-readers and mobile devices.
+          - Rendered mathematical notation, diagrams, Mermaid figures, SVG assets, and selected animated assets converted for static reading.
+          - Optimized structure and embedded fonts for release download, archiving, and offline study.
           - 中英文目录、章节编号与页面结构对齐，便于课堂引用和双语对照阅读。
-          - 局部参考文献、脚注、代码块与常见 Markdown 结构经过面向 PDF 的整理。
+          - 局部参考文献、脚注、代码块与常见 Markdown 结构经过面向电子书的整理。
 
           ## Citation / 引用
 
@@ -176,19 +215,21 @@ jobs:
 
           ## Release Assets / 资源说明
 
-          GitHub automatically adds **Source code (zip)** and **Source code (tar.gz)** to every release. Those files are source archives, not the textbook PDFs. For reading, download:
+          GitHub automatically adds **Source code (zip)** and **Source code (tar.gz)** to every release. Those files are source archives, not the textbook. For reading, download:
 
-          GitHub 会在每个 Release 中自动显示 **Source code (zip)** 和 **Source code (tar.gz)**。这两个文件是源码包，不是教材 PDF。阅读请下载：
+          GitHub 会在每个 Release 中自动显示 **Source code (zip)** 和 **Source code (tar.gz)**。这两个文件是源码包，不是教材。阅读请下载：
 
-          - \`${PDF_ASSET_NAME}\` for the Chinese edition / 中文版
-          - \`${EN_PDF_ASSET_NAME}\` for the English edition / 英文版
+          - \`${PDF_ASSET_NAME}\` - Chinese PDF / 中文版 PDF
+          - \`${EN_PDF_ASSET_NAME}\` - English PDF / 英文版 PDF
+          - \`${EPUB_ASSET_NAME}\` - Chinese EPUB / 中文版 EPUB
+          - \`${EN_EPUB_ASSET_NAME}\` - English EPUB / 英文版 EPUB
 
           **Repository / 仓库**: https://github.com/${GITHUB_REPOSITORY}
 
           **Full Changelog / 完整变更记录**: https://github.com/${GITHUB_REPOSITORY}/commits/${TAG_NAME}
           EOF
 
-      - name: Publish PDF release
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release.outputs.tag }}
@@ -197,6 +238,8 @@ jobs:
           files: |
             ${{ steps.release.outputs.pdf_path }}
             ${{ steps.release.outputs.en_pdf_path }}
+            ${{ steps.release.outputs.epub_path }}
+            ${{ steps.release.outputs.en_epub_path }}
           fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
