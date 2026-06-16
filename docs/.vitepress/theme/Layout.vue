@@ -8,7 +8,7 @@ import {
   PopoverRoot,
   PopoverTrigger
 } from 'reka-ui'
-import { HandHeart, Moon, Settings, Sun } from 'lucide-vue-next'
+import { HandHeart, MessageCircle, Moon, Settings, Sun } from 'lucide-vue-next'
 import ReadingProgress from './components/ReadingProgress.vue'
 import SidebarFooter from './components/SidebarFooter.vue'
 import TextType from './components/TextType.vue'
@@ -24,6 +24,7 @@ const LINE_HEIGHT_STORAGE_KEY = 'ct-doc-line-height'
 const DOC_WIDTH_STORAGE_KEY = 'ct-doc-content-width'
 const SIDEBAR_COLLAPSED_KEY = 'ct-sidebar-collapsed'
 const SIDEBAR_WIDTH_KEY = 'ct-sidebar-width-compact-v3'
+const DISCORD_URL = 'https://discord.gg/XU7DQmpqk'
 
 const MIN_FONT_SIZE = 15
 const MAX_FONT_SIZE = 20
@@ -104,6 +105,12 @@ const supportQrLabel = computed(() =>
   isEnglishRoute.value
     ? 'Official account / community QR code'
     : '公众号 / 社群二维码'
+)
+const discordLinkLabel = computed(() =>
+  isEnglishRoute.value ? 'Join Discord' : '加入 Discord'
+)
+const discordLinkMeta = computed(() =>
+  isEnglishRoute.value ? 'Community' : '社区交流'
 )
 const readingToolsCopy = computed(() =>
   isEnglishRoute.value
@@ -978,11 +985,7 @@ watch(
                         :aria-label="readingToolsCopy.switchDark"
                         @click="setAppearance(true)"
                       >
-                        <Moon
-                          :size="18"
-                          :stroke-width="2"
-                          aria-hidden="true"
-                        />
+                        <Moon :size="18" :stroke-width="2" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -1147,6 +1150,22 @@ watch(
                   >
                     <span>WalkingLab</span>
                     <span>GitHub</span>
+                  </a>
+                  <a
+                    class="ct-support-link"
+                    :href="DISCORD_URL"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span class="ct-support-link-main">
+                      <MessageCircle
+                        :size="15"
+                        :stroke-width="2"
+                        aria-hidden="true"
+                      />
+                      <span>{{ discordLinkLabel }}</span>
+                    </span>
+                    <span>{{ discordLinkMeta }}</span>
                   </a>
                   <div class="ct-support-qr-card">
                     <img
@@ -1511,6 +1530,16 @@ watch(
   color: var(--vp-c-brand-1);
 }
 
+.ct-support-link + .ct-support-link {
+  margin-top: 8px;
+}
+
+.ct-support-link-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .ct-support-qr-card {
   display: grid;
   gap: 8px;
@@ -1541,8 +1570,7 @@ watch(
 }
 
 .ct-reading-tools-fade-enter-active .ct-popover-surface {
-  animation: ct-popover-surface-enter 0.18s cubic-bezier(0.22, 1, 0.36, 1)
-    both;
+  animation: ct-popover-surface-enter 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .ct-reading-tools-fade-leave-active .ct-popover-surface {

@@ -1,7 +1,7 @@
 <script setup>
 import { useData } from 'vitepress'
 import { computed } from 'vue'
-import { Github, Moon, Settings, Sun } from 'lucide-vue-next'
+import { Github, MessageCircle, Moon, Settings, Sun } from 'lucide-vue-next'
 
 const { isDark, theme } = useData()
 
@@ -16,6 +16,8 @@ const githubUrl = computed(() => {
   if (repo) return `https://github.com/${repo}`
   return 'https://github.com/walkinglabs/hands-on-modern-rl'
 })
+
+const discordUrl = 'https://discord.gg/XU7DQmpqk'
 </script>
 
 <template>
@@ -39,6 +41,15 @@ const githubUrl = computed(() => {
           <Settings :size="16" :stroke-width="2" />
         </button>
       </div>
+      <a
+        class="ct-sidebar-footer-link"
+        :href="discordUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="Discord"
+      >
+        <MessageCircle :size="16" :stroke-width="2" />
+      </a>
       <a
         class="ct-sidebar-footer-link"
         :href="githubUrl"
