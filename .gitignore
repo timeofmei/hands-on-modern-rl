@@ -1,6 +1,7 @@
 node_modules/
 docs/.vitepress/dist
 docs/.vitepress/cache
+/.vitepress/
 .DS_Store
 __pycache__/
 *.pyc

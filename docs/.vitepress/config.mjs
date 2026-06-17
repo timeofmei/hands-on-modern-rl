@@ -94,6 +94,20 @@ function mermaidConfigPlugin() {
   }
 }
 
+function katexDevPlugin() {
+  return {
+    name: 'katex-dev-inject',
+    enforce: 'pre',
+    transformIndexHtml(html) {
+      const katexScripts = [
+        `<script src="${base}katex.min.js"><\/script>`,
+        `<script src="${base}auto-render.min.js"><\/script>`
+      ]
+      return html.replace('</head>', `${katexScripts.join('\n')}\n</head>`)
+    }
+  }
+}
+
 function normalizeBrokenDocPathPlugin() {
   const canonicalSegments = ['appendix_math', 'linear-algebra-basics']
 
@@ -434,8 +448,8 @@ function rescueMathInInline(md) {
 }
 
 function katexMarkdown(md) {
-  md.inline.ruler.before('text', 'math_inline', mathInline)
-  md.block.ruler.after('blockquote', 'math_block', mathBlock, {
+  md.inline.ruler.push('math_inline', mathInline)
+  md.block.ruler.push('math_block', mathBlock, {
     alt: ['paragraph', 'reference', 'blockquote', 'list']
   })
   md.renderer.rules.math_inline = (tokens, idx) =>
@@ -1863,7 +1877,7 @@ export default defineConfig({
   },
   vite: {
     customLogger: logger,
-    plugins: [mermaidConfigPlugin(), normalizeBrokenDocPathPlugin()],
+    plugins: [mermaidConfigPlugin(), normalizeBrokenDocPathPlugin(), katexDevPlugin()],
     optimizeDeps: {
       include: [
         '@braintree/sanitize-url',
@@ -1904,7 +1918,10 @@ export default defineConfig({
     ],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:url', content: siteUrl }],
-    ['meta', { name: 'twitter:card', content: 'summary_large_image' }]
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    // KaTeX client-side rendering for dev mode
+    ['script', { src: `${base}katex.min.js` }],
+    ['script', { src: `${base}auto-render.min.js` }]
   ],
   locales: {
     root: {
