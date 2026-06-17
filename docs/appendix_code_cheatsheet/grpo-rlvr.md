@@ -103,8 +103,8 @@ def grpo_loss(log_probs, old_log_probs, ref_log_probs,
     surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * adv
     policy_loss = -torch.min(surr1, surr2).mean()
 
-    # 4. KL 惩罚
-    log_ratio = seq_logp - seq_ref
+    # 4. KL 惩罚（k3 估计：r = π_ref / π_θ，样本来自 π_θ）
+    log_ratio = seq_ref - seq_logp
     kl = (torch.exp(log_ratio) - 1 - log_ratio).mean()
 
     return policy_loss + kl_coeff * kl

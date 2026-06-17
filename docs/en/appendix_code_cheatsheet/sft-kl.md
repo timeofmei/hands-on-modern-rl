@@ -87,7 +87,7 @@ def sft_loss(logits, labels, ignore_index=-100):
 
 ### One-Line Memory
 
-> $\mathrm{KL}(p \| q) = \mathbb{E}_p[\log p - \log q]$. Two estimators are common: a biased `log_ratio` form, and an always-nonnegative “unbiased” form `ratio - 1 - log_ratio`.
+> $\mathrm{KL}(p \| q) = \mathbb{E}_p[\log p - \log q]$. Both estimators below are unbiased: k1 = `log(p/q)` (high variance, individual samples can be negative); k3 = `q/p - 1 - log(q/p)` (always non-negative — mind the ratio direction).
 
 Interview-style questions:
 
@@ -98,12 +98,12 @@ Interview-style questions:
 ### Pseudocode
 
 ```
-# Method 1: biased estimate (simple; common in PPO)
+# Method 1: k1 estimate (unbiased, high variance; common in PPO)
 kl = (log_prob - ref_log_prob).mean()
 
-# Method 2: nonnegative estimate (common in GRPO / trl)
-ratio = exp(log_prob - ref_log_prob)
-kl = (ratio - 1 - (log_prob - ref_log_prob)).mean()
+# Method 2: k3 estimate (unbiased, nonnegative; common in GRPO / trl)
+log_ratio = ref_log_prob - log_prob      # mind the direction: ratio = q/p
+kl = (exp(log_ratio) - 1 - log_ratio).mean()
 ```
 
 ### Python (NumPy) Implementation
@@ -112,14 +112,14 @@ kl = (ratio - 1 - (log_prob - ref_log_prob)).mean()
 import numpy as np
 
 
-def kl_biased(log_p, log_q):
-    """Biased estimate: E_p[log p - log q]. Simple, but can be negative with few samples."""
+def kl_k1(log_p, log_q):
+    """k1: E_p[log p - log q]. Unbiased but high variance; can be negative with few samples."""
     return np.mean(log_p - log_q)
 
 
-def kl_unbiased(log_p, log_q):
-    """Nonnegative estimate: E_p[exp(log p - log q) - 1 - (log p - log q)]."""
-    log_ratio = log_p - log_q
+def kl_k3(log_p, log_q):
+    """k3: E_p[exp(log q - log p) - 1 - (log q - log p)]. Unbiased and always nonnegative."""
+    log_ratio = log_q - log_p
     return np.mean(np.exp(log_ratio) - 1 - log_ratio)
 ```
 
@@ -129,24 +129,32 @@ def kl_unbiased(log_p, log_q):
 import torch
 
 
-def kl_penalty(log_probs, ref_log_probs, mode="unbiased"):
+def kl_penalty(log_probs, ref_log_probs, mode="k3"):
     """
     log_probs:     [B, seq_len] log-probabilities under the current policy
     ref_log_probs: [B, seq_len] log-probabilities under the reference policy
     """
-    if mode == "biased":
+    if mode == "k1":
+        # k1: unbiased but high variance; can be negative with few samples
         return (log_probs - ref_log_probs).mean()
 
-    log_ratio = log_probs - ref_log_probs
+    # k3: unbiased and always nonnegative (default in trl / GRPO)
+    log_ratio = ref_log_probs - log_probs     # ratio = q/p
     return (torch.exp(log_ratio) - 1 - log_ratio).mean()
 ```
 
 ### What Is the Difference?
 
-| Estimator   | Formula                                            | Notes                                                |
-| ----------- | -------------------------------------------------- | ---------------------------------------------------- |
-| Biased      | $\mathbb{E}_p[\log \frac{p}{q}]$                   | simple, but may become negative with limited samples |
-| Nonnegative | $\mathbb{E}_p[\frac{p}{q} - 1 - \log \frac{p}{q}]$ | guaranteed $\ge 0$, commonly used in GRPO            |
+Samples come from the current policy $p$; the target is $\text{KL}(p \| q)$ with $q$ the reference policy:
+
+| Estimator | Formula                                            | Notes                                                          |
+| --------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| k1        | $\mathbb{E}_p[\log \frac{p}{q}]$                   | unbiased, simple, but may become negative with limited samples |
+| k3        | $\mathbb{E}_p[\frac{q}{p} - 1 - \log \frac{q}{p}]$ | unbiased and always $\ge 0$, default in GRPO                   |
+
+::: warning Pitfall
+In k3 the ratio must be $q/p$ (ref/current), not $p/q$. Flipping the sign makes the expectation $\chi^2(p\|q) - \text{KL}(p\|q)$ — still nonnegative, but no longer the KL, and inconsistent with the Chapter 9 formula.
+:::
 
 ---
 

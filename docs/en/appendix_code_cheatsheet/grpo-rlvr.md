@@ -114,8 +114,8 @@ def grpo_loss(
     surr2 = torch.clamp(ratio, 1 - clip_eps, 1 + clip_eps) * adv
     policy_loss = -torch.min(surr1, surr2).mean()
 
-    # 4) KL penalty (a nonnegative estimator)
-    log_ratio = seq_logp - seq_ref
+    # 4) KL penalty (k3 estimator: r = π_ref / π_θ, samples from π_θ)
+    log_ratio = seq_ref - seq_logp
     kl = (torch.exp(log_ratio) - 1 - log_ratio).mean()
 
     return policy_loss + kl_coeff * kl

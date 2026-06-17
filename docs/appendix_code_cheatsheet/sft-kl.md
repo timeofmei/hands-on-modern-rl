@@ -78,19 +78,19 @@ def sft_loss(logits, labels, ignore_index=-100):
 
 ### 一句话记忆
 
-> **KL(p || q) = E_p[log p - log q]。两个写法：有偏用 `log_ratio`，无偏用 `ratio - 1 - log_ratio`。**
+> **KL(p ‖ q) = E_p[log p − log q]。两种无偏估计：k1 = log(p/q)（高方差，单点可能为负）；k3 = q/p − 1 − log(q/p)（恒非负，注意 ratio 方向）。**
 
 面试常考：PPO 里怎么算 KL？GRPO 里怎么算 KL？两种估计有何区别？
 
 ### 伪代码
 
 ```
-# 方法一：有偏估计（简单，PPO 常用）
+# 方法一：k1 估计（无偏但高方差，PPO 常用）
 kl = (log_prob - ref_log_prob).mean()
 
-# 方法二：无偏估计（GRPO /trl 常用）
-ratio = exp(log_prob - ref_log_prob)
-kl = (ratio - 1 - (log_prob - ref_log_prob)).mean()
+# 方法二：k3 估计（无偏且恒非负，GRPO / trl 默认）
+log_ratio = ref_log_prob - log_prob      # 注意方向：ratio = q/p
+kl = (exp(log_ratio) - 1 - log_ratio).mean()
 ```
 
 ### Python 实现
@@ -98,13 +98,13 @@ kl = (ratio - 1 - (log_prob - ref_log_prob)).mean()
 ```python
 import numpy as np
 
-def kl_biased(log_p, log_q):
-    """有偏估计：E_p[log p - log q]，简单但可能为负"""
+def kl_k1(log_p, log_q):
+    """k1：E_p[log p - log q]，无偏但高方差，样本少时可能为负"""
     return np.mean(log_p - log_q)
 
-def kl_unbiased(log_p, log_q):
-    """无偏估计：E_p[exp(log p - log q) - 1 - (log p - log q)]"""
-    log_ratio = log_p - log_q
+def kl_k3(log_p, log_q):
+    """k3：E_p[exp(log q - log p) - 1 - (log q - log p)]，无偏且恒非负"""
+    log_ratio = log_q - log_p
     return np.mean(np.exp(log_ratio) - 1 - log_ratio)
 ```
 
@@ -113,25 +113,32 @@ def kl_unbiased(log_p, log_q):
 ```python
 import torch
 
-def kl_penalty(log_probs, ref_log_probs, mode="unbiased"):
+def kl_penalty(log_probs, ref_log_probs, mode="k3"):
     """
     log_probs:     [B, seq_len]  当前策略的 log 概率
     ref_log_probs: [B, seq_len]  参考策略的 log 概率
     """
-    if mode == "biased":
+    if mode == "k1":
+        # k1：无偏但高方差，样本少时可能为负
         return (log_probs - ref_log_probs).mean()
 
-    # 无偏估计（trl / GRPO 默认）
-    log_ratio = log_probs - ref_log_probs
+    # k3：无偏且恒非负（trl / GRPO 默认）
+    log_ratio = ref_log_probs - log_probs     # ratio = q/p
     return (torch.exp(log_ratio) - 1 - log_ratio).mean()
 ```
 
 ### 两种估计的区别
 
-| 估计方法 | 公式                                               | 特点                     |
-| -------- | -------------------------------------------------- | ------------------------ |
-| 有偏     | $\mathbb{E}_p[\log \frac{p}{q}]$                   | 简单，但样本少时可能为负 |
-| 无偏     | $\mathbb{E}_p[\frac{p}{q} - 1 - \log \frac{p}{q}]$ | 保证 $\geq 0$，GRPO 默认 |
+样本来自当前策略 $p$，目标 $\text{KL}(p \| q)$，$q$ 是参考策略：
+
+| 估计器 | 公式                                               | 特点                           |
+| ------ | -------------------------------------------------- | ------------------------------ |
+| k1     | $\mathbb{E}_p[\log \frac{p}{q}]$                   | 无偏，简单，但样本少时可能为负 |
+| k3     | $\mathbb{E}_p[\frac{q}{p} - 1 - \log \frac{q}{p}]$ | 无偏，且恒 $\geq 0$，GRPO 默认 |
+
+::: warning 易错点
+k3 里 ratio 必须是 $q/p$（ref/current），不是 $p/q$。写反了期望变成 $\chi^2(p\|q) - \text{KL}(p\|q)$，虽然有界非负但偏离真值，且与第 9 章公式不一致。
+:::
 
 ---
 
