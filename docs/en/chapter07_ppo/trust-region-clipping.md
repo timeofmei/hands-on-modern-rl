@@ -75,7 +75,7 @@ Importance sampling solves the data-reuse problem but provides no guarantee of s
 
 ## TRPO and a KL-Divergence Constraint
 
-In 2015, Schulman et al. proposed: **constrain the distance between the old and new policies directly**. The standard tool for measuring the difference between two probability distributions is KL divergence (Kullback-Leibler divergence), written here as a hard constraint:
+In 2015, Schulman et al. proposed TRPO (Trust Region Policy Optimization). Its core idea: **constrain the distance between the old and new policies directly**. The standard tool for measuring the difference between two probability distributions is KL divergence (Kullback-Leibler divergence), written here as a hard constraint:
 
 $$\max_\theta \; \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right] \quad \text{s.t.} \quad \mathbb{E}_t \left[ D_{\text{KL}}(\pi_{\text{old}} \| \pi_\theta) \right] \leq \delta$$
 

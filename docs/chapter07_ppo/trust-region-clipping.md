@@ -71,7 +71,7 @@ $$L^{\text{IS}}(\theta) = \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right]$$
 
 ## TRPO 与 KL 散度约束
 
-2015 年，Schulman 等人给出的方案是：**直接约束新旧策略之间的距离**。衡量两个概率分布差异的标准工具为 KL 散度（Kullback-Leibler divergence），将其表述为硬约束：
+2015 年，Schulman 等人提出 TRPO（Trust Region Policy Optimization，信任域策略优化）。其核心思路是：**直接约束新旧策略之间的距离**。衡量两个概率分布差异的标准工具为 KL 散度（Kullback-Leibler divergence），将其表述为硬约束：
 
 $$\max_\theta \; \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right] \quad \text{s.t.} \quad \mathbb{E}_t \left[ D_{\text{KL}}(\pi_{\text{old}} \| \pi_\theta) \right] \leq \delta$$
 
