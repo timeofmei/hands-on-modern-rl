@@ -59,6 +59,12 @@ $$A_t^{\text{TD}} = r_t + \gamma V(s_{t+1}) - V(s_t) = \delta_t$$
 
 最后一步 $V(s_5) = 0$（episode 结束）。TD 估计的优势就是这一列 $\delta_t$。它的方差低——只涉及一步的随机性；但偏差高——若 Critic 的 $V$ 不准，误差会经 $\gamma V(s_{t+1})$ 直接传进 $\delta_t$。
 
+**偏差的来源可以精确拆出来**。设 Critic 估计为 $V(s_t) = V^*(s_t) + b_t$，其中 $V^*$ 是真值、$b_t$ 是 Critic 在该状态下的误差。代入 TD：
+
+$$\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t) = \underbrace{r_t + \gamma V^*(s_{t+1}) - V^*(s_t)}_{\text{真实 TD}} + \underbrace{\gamma b_{t+1} - b_t}_{\text{Critic 偏差项}}$$
+
+$\gamma = 1$ 且 Critic 误差近似常数（$b_t \approx b$）时偏差项为零——常数偏差在相邻状态间相互抵消。但 $\gamma < 1$ 或 Critic 在不同状态上误差差异较大时，$\gamma b_{t+1} - b_t \neq 0$，系统性污染每一步的优势估计。**Critic 越不准、状态间误差差异越大，TD 偏差越严重**。
+
 ### MC 估计：完整轨迹回报
 
 MC 估计（回顾：[MC 方法](../chapter03_mdp/dp-mc-td)）要等整段 episode 跑完，用从 $t$ 开始的完整回报减去 $V(s_t)$：
@@ -87,6 +93,15 @@ $$A_t^{\text{MC}} = G_t - V(s_t), \qquad G_t = \sum_{k=0}^{\infty} \gamma^k r_{t
 
 MC 估计不依赖 Critic，只要采样足够多，期望上无偏。但 $G_t$ 包含从 $t$ 到终点的全部随机性，方差大；而且必须等 episode 结束才能算——LLM 场景里 episode 可能上千步。
 
+**方差大到什么程度可以用数字感受**。假设同一 $s_0$ 出发，环境有 50% 概率进入"好结局"（终点 $r_4 = +1$）、50% 进入"坏结局"（终点 $r_4 = -1$），其余步奖励恒为 0。$V(s_0) = 0.1$ 时：
+
+| Episode | $G_0$        | $A_0^{\text{MC}} = G_0 - V(s_0)$ |
+| ------- | ------------ | -------------------------------- |
+| 好结局  | $+1$         | $+0.9$                           |
+| 坏结局  | $-1$         | $-1.1$                           |
+
+两次采样给出 $+0.9$ 和 $-1.1$ 两个相差 2.0 的优势估计，方差极大。TD 则不然——$\delta_0 = V(s_1) - V(s_0)$，只要 Critic 学到了 $V(s_1)$ 的期望值，$\delta_0$ 几乎不随 episode 变化。**TD 用 Critic 的平滑性换取了方差控制，代价是把偏差源头从采样噪声转移到了 Critic 准确性**。
+
 把两种估计放一起看，差距很清楚：
 
 | $t$ | $A_t^{\text{TD}}$ | $A_t^{\text{MC}}$ |
@@ -110,6 +125,38 @@ $$\hat{A}_t^{\text{GAE}(\gamma, \lambda)} = \sum_{k=0}^{\infty} (\gamma \lambda)
 - $\lambda = 0$：$\hat{A}_t = \delta_t$，退化为单步 TD
 - $\lambda = 1$：$\hat{A}_t = \sum_{k=0}^{\infty} \gamma^k \delta_{t+k} = G_t - V(s_t)$，退化为 MC
 - $0 < \lambda < 1$：远处的 $\delta_{t+k}$ 按 $(\gamma\lambda)^k$ 指数衰减
+
+### 公式为什么是这个形式
+
+公式看起来突兀——为什么是指数加权 $(\gamma\lambda)^k$，而不是均匀权重或线性衰减？这要从插值的真正难点说起。
+
+朴素的方案是把 TD 和 MC 简单线性组合 $\hat{A}_t = \alpha \cdot \delta_t + (1-\alpha) \cdot (G_t - V(s_t))$。但前文已展开 $G_t - V(s_t) = \sum_{k=0}^{\infty} \gamma^k \delta_{t+k}$——**MC 不是和 TD 并列的另一信号，而是 TD 的无限累加**。把"局部信号"和"全局累加"简单加权，等于既减去 $\delta_t$ 又加回 $\delta_t$，物理意义混乱。
+
+正确的做法是在 $\delta$ 序列的权重上做文章。把优势写成 $\hat{A}_t = \sum_{k=0}^{\infty} w_k \delta_{t+k}$，TD 对应 $w_0 = 1,\; w_{k>0} = 0$，MC 对应 $w_k = \gamma^k$。两者之间的插值，就是让权重 $w_k$ 从 $\gamma^k$ 出发，按某种衰减因子 $\lambda^k$ 压缩远处项：
+
+$$w_k = (\gamma\lambda)^k$$
+
+- $\lambda = 0$：除 $w_0 = 1$ 外全部归零，回到 TD
+- $\lambda = 1$：$w_k = \gamma^k$，回到 MC
+- $0 < \lambda < 1$：远处 $\delta$ 的贡献以 $\lambda^k$ 速度衰减，比 MC 的 $\gamma^k$ 更快淡出
+
+指数衰减是数学上最自然的插值形式——可递推、无后效性，下一节会看到这直接带来 $O(N)$ 的递推算法。GAE 的"巧妙"之处不在公式本身，而在选择把插值作用于 $\delta$ 的累加权重而非最终值。
+
+### 递推式：从 $O(N^2)$ 求和到 $O(N)$
+
+按定义直接算 $\hat{A}_t$ 需要对每个 $t$ 求一次无限级数，总复杂度 $O(N^2)$。把 $\hat{A}_t$ 展开看结构：
+
+$$\hat{A}_t = \delta_t + (\gamma\lambda)\delta_{t+1} + (\gamma\lambda)^2 \delta_{t+2} + (\gamma\lambda)^3 \delta_{t+3} + \cdots$$
+
+把第二项起的公共因子 $\gamma\lambda$ 提出：
+
+$$\hat{A}_t = \delta_t + \gamma\lambda \cdot \underbrace{\left[\delta_{t+1} + (\gamma\lambda)\delta_{t+2} + (\gamma\lambda)^2 \delta_{t+3} + \cdots\right]}_{\hat{A}_{t+1}}$$
+
+方括号里的级数正是 $\hat{A}_{t+1}$（把 $\hat{A}_t$ 的 $\delta_t$ 换成 $\delta_{t+1}$ 整体右移一步）。于是：
+
+$$\hat{A}_t = \delta_t + \gamma\lambda \cdot \hat{A}_{t+1}$$
+
+这就是递推式。它把每个 $\hat{A}_t$ 表示为"本步 $\delta_t$ + 一步缩放后的后续优势"，从后往前扫一遍就能算出全部，总复杂度降到 $O(N)$。**指数权重的好处正是在这里兑现**——只有 $(\gamma\lambda)^k$ 这种无记忆形式才能写出如此干净的递推。
 
 ### 用递推式算
 
@@ -142,6 +189,18 @@ $$\hat{A}_t = \delta_t + \gamma\lambda \cdot \hat{A}_{t+1}$$
 - $\lambda=0$ 那一列就是 TD 估计（前面对照表的左列）
 - $\lambda=1$ 那一列就是 MC 估计（前面对照表的右列）
 - $\lambda=0.95$ 在两者之间，越靠近终点越接近 MC，越靠前越被指数衰减压低
+
+要看出"指数加权"具体长什么样，把 $\lambda=0.95$ 这一列的每个值按公式展开（$\gamma=1$）：
+
+| $t$ | $\hat{A}_t$ 的加权展开                                  | 值     |
+| --- | ------------------------------------------------------- | ------ |
+| 4   | $\delta_4$                                              | $0.20$ |
+| 3   | $\delta_3 + 0.95\,\delta_4$                             | $0.49$ |
+| 2   | $\delta_2 + 0.95\,\delta_3 + 0.90\,\delta_4$            | $0.67$ |
+| 1   | $\delta_1 + 0.95\,\delta_2 + 0.90\,\delta_3 + 0.86\,\delta_4$ | $0.73$ |
+| 0   | $\delta_0 + 0.95\,\delta_1 + 0.90\,\delta_2 + 0.86\,\delta_3 + 0.81\,\delta_4$ | $0.80$ |
+
+权重从 $1$ 沿 $0.95 \to 0.90 \to 0.86 \to 0.81$ 几何衰减，每多回传一步打 0.95 折。终点奖励 $\delta_4 = 0.2$ 经过 4 步衰减后仍有 $0.81 \times 0.2 \approx 0.16$ 的贡献传到 $\hat{A}_0$——这就是"信度回传"在数字上的样子。
 
 随着 $\lambda$ 增大，早期步骤的优势从 $0.1$ 一路爬到 $0.9$——**信度从最后一步逐步回传到每一步**，但代价是方差同步上升（远处 $\delta$ 的随机性被加进来）。PPO 工程上的默认值通常是 $\lambda = 0.95$，偏向 MC 一侧，用一点偏差换方差的显著下降。
 
@@ -206,6 +265,15 @@ advantages, returns = compute_gae(rewards, values, dones)
 print("优势估计:", advantages)
 print("目标回报:", returns)
 ```
+
+运行结果（$\gamma = 0.99$、$\lambda = 0.95$，与正文 $\gamma = 1$ 表格略有差异）：
+
+```
+优势估计: [0.6203 0.4951 0.4159 0.3222 0.2   ]
+目标回报: [0.7203 0.6951 0.7159 0.8222 1.0   ]
+```
+
+注意 $t = 0$ 处的优势 $0.62$ 比 $t = 4$ 处的 $0.20$ 还大——终点奖励 $r_4 = 1$ 通过 GAE 的指数衰减一路回传到起点，而 $t = 4$ 只看到自己那一步的 $\delta_4 = 1 - 0.8 = 0.2$。这正是 GAE 与纯 TD 的关键区别：**让序列前段的 token 也拿到非零优势信号**。如果换成 $\lambda = 0$，整列优势退化为 $[0.1, 0.1, 0.2, 0.3, 0.2]$（前文 TD 列），起点几乎没信号。`returns` 列则把优势加回 $V(s_t)$，用作 Critic 的回归目标——它要把"未来回报"重建出来，确保下一步 $\delta$ 的基准 $V(s_t)$ 更准。
 
 ## 奖励模型
 
@@ -348,6 +416,19 @@ RM 在训练集上表现完美可能意味着**过拟合**。过拟合的 RM 会
 2. **泛化能力差**：当策略更新后生成的新回答不在训练分布内，过拟合的 RM 可能给出完全错误的评分——对从未见过的回答类型，它的判断可能和随机猜差不多。
 
 这就是为什么 RM 的训练需要非常小心地控制容量和正则化——宁可 RM 稍微"钝"一点，也不要让它"太聪明"。
+
+</details>
+
+<details>
+<summary>思考题：Critic 完全随机（输出毫无意义）时，GAE 在 $\lambda=0$ 和 $\lambda=1$ 下分别退化为什么？哪种更可用？</summary>
+
+$\lambda=0$ 时 $\hat{A}_t = \delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$。Critic 随机意味着 $V$ 是噪声，$\delta_t$ 也是噪声——**优势估计完全无意义**。
+
+$\lambda=1$ 时 $\hat{A}_t = G_t - V(s_t)$。$V(s_t)$ 是噪声，但 $G_t$ 是真实回报——GAE 退化为**带噪声 baseline 的 MC**，主体信号还在，相当于把 $V(s_t)$ 当成一个无关紧要的常数偏移。
+
+结论：$\lambda=1$ 时 GAE 对 Critic 失效更鲁棒。这也是工程上倾向用较大 $\lambda$（如 0.95）的一个原因：**它对 Critic 质量的依赖更弱——Critic 没学好时自动退化到 MC**。反过来，$\lambda=0$ 把全部赌注押在 Critic 上，Critic 一坏全坏。
+
+代价是 $\lambda=1$ 时方差也最大。$\lambda$ 的选择本质上是在"Critic 准不准"和"采样噪声大不大"之间找平衡点——这就是 0.95 成为默认值的根本理由。
 
 </details>
 
