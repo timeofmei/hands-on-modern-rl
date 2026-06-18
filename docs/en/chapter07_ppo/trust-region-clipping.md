@@ -221,7 +221,8 @@ The four out-of-bounds cases:
 | $<0$  | $< 1-\varepsilon$ | unclipped $>$ clipped | clipped value   | zero (flat region)      | same-direction stop           |
 | $<0$  | $> 1+\varepsilon$ | unclipped $<$ clipped | unclipped value | nonzero, decrease $r_t$ | opposite-direction correction |
 
-### Formal Proof That the Gradient Never Reverses
+<details>
+<summary>Formal proof that the gradient never reverses (optional)</summary>
 
 The table above verifies the min's choice across four cases. Can we give a unified mathematical guarantee that does not depend on case analysis? Yes — and the proof is remarkably short.
 
@@ -260,6 +261,8 @@ By the chain rule $\nabla_\theta L = \frac{\partial L}{\partial r_t} \cdot \nabl
 - When $\frac{\partial L}{\partial r_t} = 0$, the gradient is zero and the update stops — and this only occurs when the policy has overshot in the correct direction, where stopping is the design intent.
 
 **Every PPO update either stops, or moves in the direction indicated by the advantage — it never reverses, and it never stalls when correction is needed.**
+
+</details>
 
 Across all four cases, $\min$ consistently picks the **more pessimistic** (numerically smaller) candidate: same-direction overshoot makes clip cut the inflated reward, so the clipped value is more pessimistic; opposite-direction overshoot makes the unclipped value honestly expose that the reward really is low, so the unclipped value is more pessimistic. **"More pessimistic" coincides exactly with "gradient direction is correct"** — this is the intuition behind the formal proof above.
 
