@@ -858,11 +858,11 @@ const zhSidebar = {
               link: '/chapter07_ppo/ppo-math'
             },
             {
-              text: '7.3 信任域与裁剪机制',
+              text: '7.3 策略更新的约束机制',
               link: '/chapter07_ppo/trust-region-clipping'
             },
             {
-              text: '7.4 GAE 与奖励模型',
+              text: '7.4 优势估计与奖励建模',
               link: '/chapter07_ppo/gae-reward-model'
             },
             {
@@ -1445,11 +1445,11 @@ const enSidebar = {
             },
             { text: '7.2 PPO Derivation', link: '/en/chapter07_ppo/ppo-math' },
             {
-              text: '7.3 Trust Region & Clipping',
+              text: '7.3 Constraint Mechanisms for Policy Updates',
               link: '/en/chapter07_ppo/trust-region-clipping'
             },
             {
-              text: '7.4 GAE and Reward Models',
+              text: '7.4 Advantage Estimation and Reward Modeling',
               link: '/en/chapter07_ppo/gae-reward-model'
             },
             {

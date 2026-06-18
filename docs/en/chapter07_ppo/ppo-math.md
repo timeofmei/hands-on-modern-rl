@@ -681,8 +681,8 @@ At this point, you have the **complete mathematical picture of PPO**: from the i
 
 The next two sections each go deeper into a key detail:
 
-- **Intuition and experiments for clipping**: [Trust Region and Clipping](./trust-region-clipping)
-- **GAE derivation and its use in reward models and LLM alignment**: [GAE, Reward Models, and LLM Alignment](./gae-reward-model)
+- **Intuition and experiments for clipping**: [Constraint Mechanisms for Policy Updates](./trust-region-clipping)
+- **GAE derivation and its use in reward models and LLM alignment**: [Advantage Estimation and Reward Modeling](./gae-reward-model)
 
 ## Appendix: Deriving Policy Gradients and Advantage from Scratch
 

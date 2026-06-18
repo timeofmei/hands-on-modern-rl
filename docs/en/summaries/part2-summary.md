@@ -217,7 +217,7 @@ loss = actor_loss + critic_loss
 
 ## Chapter 7: PPO - Making Policy Updates More Stable
 
-### Trust Regions and Clipping
+### Constraint Mechanisms for Policy Updates
 
 Actor-Critic is more stable than REINFORCE, but policy updates can still be too large. If a single update changes the policy dramatically, previously collected data becomes irrelevant, and training can oscillate violently.
 

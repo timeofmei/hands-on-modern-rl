@@ -1,14 +1,20 @@
 ---
-title: 7.3 Trust Region and Clipping
+title: 7.3 Constraint Mechanisms for Policy Updates
 ---
 
-# 7.3 Trust Region and Clipping
+# 7.3 Constraint Mechanisms for Policy Updates
 
-In the previous sections, we already looked at PPO training curves on BipedalWalker, and we derived the mathematics of the clipped surrogate objective (review: [PPO Math Derivation](./ppo-math)). But one core question is still unanswered:
+## Section Overview
 
-What exactly is the clipping mechanism protecting? Why can a simple policy-gradient method “collapse” in practice?
+Section 7.2 derived PPO's clipped surrogate objective:
 
-To answer that, we have to start from the risk of policy updates themselves.
+$$L^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) \cdot A_t, \; \text{clip}(r_t(\theta), 1-\varepsilon, 1+\varepsilon) \cdot A_t \right) \right]$$
+
+This objective contains a policy ratio $r_t$, a clipping operation, and an outer min. This section answers two questions: **what does this formula protect, and why can we not simply use the vanilla policy gradient?**
+
+The line of reasoning is: the update risk of vanilla policy gradient → importance sampling for data reuse → TRPO's KL-divergence constraint → PPO's clipped approximation. The entire formula is driven by a single motive: **constrain the magnitude of each update so that a single step cannot ruin the policy**.
+
+To keep the derivation concrete, this section uses a single running example throughout: a state $s$ with two actions $a_1, a_2$, where the initial policy assigns $\pi(a_1 \mid s) = 0.6$ and $\pi(a_2 \mid s) = 0.4$. The central question is: what happens if one update pushes $\pi(a_1 \mid s)$ to $0.99$?
 
 ::: tip Prerequisites for This Section
 
@@ -16,122 +22,159 @@ To answer that, we have to start from the risk of policy updates themselves.
 - [The advantage function $A(s,a)$](../chapter06_actor_critic/advantage-function): the directional signal for policy updates
   :::
 
-## The Instability of Naive Policy Gradients
+## The Update Risk of Vanilla Policy Gradient
 
-Recall the policy-gradient update rule from Chapter 5:
+Recall the policy-gradient update from Chapter 5 ([REINFORCE](../chapter05_policy_gradient/reinforce)):
 
-$$\theta \leftarrow \theta + \alpha \cdot \nabla_\theta \log \pi_\theta(a|s) \cdot A(s,a)$$
+$$\theta \leftarrow \theta + \alpha \cdot \nabla_\theta \log \pi_\theta(a \mid s) \cdot A(s,a)$$
 
-This rule says: if action $a$ has positive advantage $A(s,a) > 0$ (better than average), then we update parameters in the direction that increases $\pi(a|s)$. That sounds reasonable. The problem is that there is **no explicit bound on the update magnitude**.
+When the advantage $A(s,a) > 0$ (better than average), the parameters are updated in the direction that increases $\pi(a \mid s)$. **The problem: there is no upper bound on the magnitude of this update.**
 
-Picture a concrete scenario. In some state, the policy assigns probability 0.6 to action $a_1$ and 0.4 to $a_2$. If a single update pushes $a_1$ all the way to 0.99, then $a_2$ drops to 0.01. But this change is driven by just the samples you happened to see in this batch. What if the high advantage was mostly luck? You have now “blocked off” an alternative that might actually be good.
+Apply this to the running example. Suppose we sample $(s, a_1)$ with advantage $A(s, a_1) = 2$ and learning rate $\alpha = 0.5$. A single update yields:
 
-Worse, once the policy changes sharply, previously collected data becomes less relevant, because that data was generated under the “old policy.”
+|                   | Before | After |
+| ----------------- | ------ | ----- |
+| $\pi(a_1 \mid s)$ | 0.6    | 0.99  |
+| $\pi(a_2 \mid s)$ | 0.4    | 0.01  |
 
-This is the central dilemma of naive policy gradients:
+In one step, the probability of $a_1$ rises from 0.6 to 0.99. Yet this is the result of **a single sample** — if the high advantage was partly due to sampling variance, the policy has already compressed the alternative action's probability to 0.01. **Policy updates are irreversible; there is no undo mechanism.**
 
-**A single update has high variance, but the policy change is not easily reversible.**
+The next round is worse. Training data was collected under the old policy $\pi_{\text{old}}$, but when we attempt to reuse the same batch, $\pi(a_1 \mid s)$ is already 0.99, far from the 0.6 at which it was sampled. **The old data is stale.**
 
-There is no “undo” button if you update too aggressively.
+The core dilemma of vanilla policy gradient is: **single-step updates have high variance, yet policy updates are irreversible**. One bad step renders the entire batch unusable.
 
-## Importance Sampling
+> If a single update can damage the policy, then before asking "how much to update," should we not first ensure that the operation of "training a new policy on old data" is itself safe?
 
-If we want to limit the update size, we first have to solve a basic mathematical mismatch: the training data is collected under the old policy $\pi_{\text{old}}$, but we want to optimize a new policy $\pi_\theta$. Can we reuse old data to evaluate how the new policy would behave?
+## Importance Sampling and Data Reuse
 
-Yes, using **importance sampling**. The key idea is that expectations under one distribution can be rewritten in terms of another distribution using a likelihood ratio:
+The first problem is data reuse. The sample $(s, a_1)$ was collected under $\pi_{\text{old}}(a_1 \mid s) = 0.6$. Can it be used to update a new policy where $\pi_\theta(a_1 \mid s) = 0.99$?
 
-$$\mathbb{E}_{a \sim \pi_{\text{old}}} \left[ \frac{\pi_\theta(a|s)}{\pi_{\text{old}}(a|s)} \cdot f(a) \right] = \mathbb{E}_{a \sim \pi_\theta} [f(a)]$$
+Mathematically yes, via **importance sampling**. An expectation under one distribution can be rewritten in terms of another using a likelihood ratio:
 
-The ratio
+$$\mathbb{E}_{a \sim \pi_{\text{old}}} \left[ \frac{\pi_\theta(a \mid s)}{\pi_{\text{old}}(a \mid s)} \cdot f(a) \right] = \mathbb{E}_{a \sim \pi_\theta} [f(a)]$$
 
-$$r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)}$$
+This ratio $r_t(\theta) = \frac{\pi_\theta(a_t \mid s_t)}{\pi_{\text{old}}(a_t \mid s_t)}$ is called the **policy ratio** — it measures the change in probability that the new policy assigns to the same $(s,a)$ relative to the old.
 
-is called the **policy ratio**. It measures how the probability of the same state-action pair changes between the new and old policies:
+Substituting the example:
 
-- $r_t(\theta) = 1$: the new policy matches the old policy (no change)
-- $r_t(\theta) > 1$: the new policy is more likely to take this action
-- $r_t(\theta) < 1$: the new policy is less likely to take this action
+| Policy                        | $\pi(a_1 \mid s)$ |
+| ----------------------------- | ----------------- |
+| Old policy $\pi_{\text{old}}$ | 0.6               |
+| New policy $\pi_\theta$       | 0.99              |
+| $r_t(\theta) = 0.99 / 0.6$    | **1.65**          |
 
-With importance sampling, the policy-gradient objective can be rewritten as:
+The new policy makes $a_1$ 1.65× more likely. Incorporating this ratio into the policy gradient yields the importance-sampled objective:
 
-$$L^{\text{IS}}(\theta) = \mathbb{E}_t \left[ \frac{\pi_\theta(a_t|s_t)}{\pi_{\text{old}}(a_t|s_t)} \cdot A_t \right] = \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right]$$
+$$L^{\text{IS}}(\theta) = \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right]$$
 
-This looks ideal: we can evaluate a new policy using old data. But it hides a dangerous trap: **if $r_t(\theta)$ becomes very large (say 10 or 100), then the gradient gets amplified by the same factor**. One optimization step can then cause a massive policy shift.
+In form, old data can now evaluate the new policy. But the value 1.65 also exposes a problem: **the gradient is amplified 1.65×**. If the policy pushes $\pi(a_1 \mid s)$ more aggressively to 0.999, then $r_t = 1.665$; at 0.9999, $r_t = 1.6665$. The larger $r_t$ becomes, the larger the next update, which in turn drives $r_t$ even higher — a **positive feedback loop**.
 
-Importance sampling gives us the ability to reuse old data, but it does not guarantee that we use it safely.
+Importance sampling solves the data-reuse problem but provides no guarantee of safe usage.
+
+> Vanilla policy gradient exhibits update risk in a single step, and importance sampling allows $r_t$ to grow without bound. Can the requirement that "each update be bounded in magnitude" be formulated mathematically?
 
 ## TRPO and a KL-Divergence Constraint
 
-In 2015, Schulman et al. proposed TRPO (Trust Region Policy Optimization), which introduces a rigorous constraint on the policy update:
-
-**After each update, the KL divergence between the old and new policies must not exceed a threshold $\delta$.**
+In 2015, Schulman et al. proposed: **constrain the distance between the old and new policies directly**. The standard tool for measuring the distance between two distributions is KL divergence, written here as a hard constraint:
 
 $$\max_\theta \; \mathbb{E}_t \left[ r_t(\theta) \cdot A_t \right] \quad \text{s.t.} \quad \mathbb{E}_t \left[ D_{\text{KL}}(\pi_{\text{old}} \| \pi_\theta) \right] \leq \delta$$
 
-The KL divergence $D_{\text{KL}}$ is a standard way to measure the “distance” between probability distributions. A typical value is $\delta = 0.01$, which means: after each update, the policy’s behavior distribution is only allowed to change slightly.
+$\delta$ is typically 0.01, meaning the policy's behavior distribution may change by at most 1% per update. This defines a **trust region**: the policy may move freely within it, but any update that crosses the boundary is rejected.
 
-You can think of this as drawing a “trust region.” The policy is allowed to move safely inside the region, but it is not allowed to step outside.
+Substituting the example. Moving $\pi(a_1 \mid s)$ from 0.6 to 0.99 gives a KL divergence roughly 0.5 or higher, far exceeding $\delta = 0.01$. TRPO would reject this update outright and pull the policy back inside the trust region.
 
-TRPO is mathematically elegant, but it has a severe engineering drawback: **it requires (approximations of) second-order information, involving the Hessian**. For a neural network with millions of parameters, the Hessian dimension scales like the square of parameter count, which is far beyond what you can store or compute directly. TRPO uses techniques like conjugate gradient to approximate the solution, but it is still slow and complex.
+Elegant in theory, but difficult in practice. Solving this constrained optimization requires the Hessian matrix (second derivatives of the parameters). For a network with millions of parameters, the Hessian's dimension is the square of the parameter count and cannot fit in memory. In the LLM setting, the policy itself is a 70B-parameter language model; computing its Hessian is entirely infeasible. TRPO approximates the solution via conjugate gradient, but it remains slow and complex to implement. **The cost of strict constraints is computational expense.**
 
-More importantly, in LLM settings the policy network might be a 70B-parameter language model. Computing second-order updates there is simply not realistic.
+> TRPO's constraint is so precise that the computational cost becomes prohibitive. Is there a method that is less strict than TRPO yet still effectively bounds the magnitude of each update?
 
-## PPO’s Clipping Mechanism
+## PPO's Clipping Mechanism
 
-In 2017, Schulman introduced PPO (Proximal Policy Optimization). The key insight of PPO is:
+In 2017, Schulman proposed PPO (Proximal Policy Optimization) as an engineering approximation to TRPO: **instead of measuring policy distance precisely, $r_t$ is truncated directly** — constrained to the interval $[1-\varepsilon, 1+\varepsilon]$, with any value beyond the bounds clamped to the boundary.
 
-**Instead of precisely solving a trust-region constrained optimization problem (as TRPO does), we can directly clip “unsafe” updates.**
-
-PPO’s clipped objective is:
+PPO's objective:
 
 $$L^{\text{CLIP}}(\theta) = \mathbb{E}_t \left[ \min \left( r_t(\theta) \cdot A_t, \; \text{clip}(r_t(\theta), 1-\varepsilon, 1+\varepsilon) \cdot A_t \right) \right]$$
 
-Do not let the formula intimidate you. We can unpack it step by step.
+Substituting the 1.65 example from above ($\varepsilon = 0.2$, $A_t = 2$):
 
-**Part 1: the unclipped objective** $r_t(\theta) \cdot A_t$.
+| Term         | Computation                                          | Value      |
+| ------------ | ---------------------------------------------------- | ---------- |
+| Unclipped    | $r_t \cdot A_t = 1.65 \times 2$                      | $3.30$     |
+| Clipped      | $\text{clip}(1.65, 0.8, 1.2) \cdot 2 = 1.2 \times 2$ | $2.40$     |
+| $\min$ picks | —                                                    | **$2.40$** |
 
-This is just the importance-sampling form: if the new policy increases the probability of actions with positive advantage, the objective grows; if it decreases those probabilities, the objective shrinks.
+Clipping compresses the larger objective value (3.30) down to 2.40. The objective becomes constant in this interval — **its dependence on $\theta$ vanishes, and the policy is no longer encouraged to increase $\pi(a_1 \mid s)$ further.**
 
-**Part 2: the clipped objective** $\text{clip}(r_t(\theta), 1-\varepsilon, 1+\varepsilon) \cdot A_t$.
+The formula consists of three terms, each with a distinct role:
 
-Here we clamp the policy ratio into a safe interval:
+- **Unclipped term** $r_t(\theta) \cdot A_t$: the standard policy-gradient objective after importance sampling — the product of the policy ratio and the advantage.
+- **Clipped term** $\text{clip}(r_t(\theta), 1-\varepsilon, 1+\varepsilon) \cdot A_t$: constrains $r_t$ within $[1-\varepsilon, 1+\varepsilon]$. $\varepsilon$ is typically 0.1 or 0.2, corresponding to a maximum change of 10% or 20% in policy probability.
+- **Minimum** $\min(\cdot, \cdot)$: selects the more conservative of the two values.
 
-$$r_t(\theta) \in [1-\varepsilon, \; 1+\varepsilon]$$
+### Directionality of the Clipping Mechanism
 
-In other words, for a given sample $(s_t, a_t)$, we do not allow the new policy to assign a probability that is too much larger or smaller than the old policy.
+The effect of clipping depends on the sign of the advantage $A_t$, with the upper and lower bounds activating under different conditions:
 
-**Part 3: take the minimum** $\min(\cdot)$.
+**When $A_t > 0$ (a good action)**: the update direction should increase $r_t(\theta)$. Clipping imposes an upper bound of $1+\varepsilon$ on $r_t$ — any value exceeding it is truncated. Even if a good action carries a high advantage, the policy probability cannot grow without bound in that direction.
 
-This is the crucial detail. Why is it a minimum rather than a maximum?
+**When $A_t < 0$ (a bad action)**: the update direction should decrease $r_t(\theta)$. Clipping imposes a lower bound of $1-\varepsilon$ on $r_t$, preventing the policy probability from being reduced excessively.
 
-- If $A_t > 0$, then making $r_t(\theta)$ larger increases $r_t(\theta)A_t$, and we would like to encourage it, but only up to a point. Once $r_t(\theta) > 1+\varepsilon$, the clipped term becomes $(1+\varepsilon)A_t$, a constant. Taking the minimum means the objective is capped there, so the gradient becomes zero beyond the cap.
-- If $A_t < 0$, then making $r_t(\theta)$ smaller decreases $r_t(\theta)A_t$ (which is “better” since the objective is maximized). But again, we only want this up to a point. Once $r_t(\theta) < 1-\varepsilon$, the clipped term becomes $(1-\varepsilon)A_t$, and taking the minimum again prevents the objective from pushing $r_t$ further away.
+```mermaid
+flowchart LR
+    subgraph posA ["A_t > 0 (good action) — upper bound active, direction →"]
+        direction LR
+        P_safe["1−ε ≤ r_t ≤ 1+ε\ngradient normal\nprobability keeps increasing"] --> P_clip["r_t > 1+ε\nclipped to 1+ε\ngradient zero, stop increasing"]
+    end
 
-You can summarize PPO clipping in one sentence:
+    subgraph negA ["A_t < 0 (bad action) — lower bound active, direction ←"]
+        direction LR
+        N_clip["r_t < 1−ε\nclipped to 1−ε\ngradient zero, stop decreasing"] --> N_safe["1−ε ≤ r_t ≤ 1+ε\ngradient normal\nprobability keeps decreasing"]
+    end
 
-When the policy ratio leaves the safe range $[1-\varepsilon, 1+\varepsilon]$, the objective stops providing incentive to move further in that direction.
+    classDef safe fill:#e8f5e9,stroke:#2e7d32,color:#000
+    classDef clip fill:#fce4ec,stroke:#c62828,color:#000
 
-## Why Take the Minimum?
+    class P_safe,N_safe safe
+    class P_clip,N_clip clip
+```
 
-It helps to examine the two cases explicitly.
+As shown, $r_t$ is constrained by clipping only in the "advantage-consistent direction": the upper bound $1+\varepsilon$ activates when $A_t > 0$, and the lower bound $1-\varepsilon$ activates when $A_t < 0$. Once $r_t$ crosses the corresponding boundary, the gradient becomes zero and the update stops.
 
-**Case 1: $A_t > 0$ (a “good” action).**
+A question remains, however: what if $r_t$ crosses the boundary in the **opposite** direction — for instance, $A_t > 0$ calls for increasing $r_t$, yet $r_t$ has fallen below $1-\varepsilon$? Can the clipping term handle this case on its own? This is precisely the reason the outer $\min$ exists.
 
-- If $r_t(\theta)$ increases slightly (still within the safe interval), then the objective increases, so we keep learning.
-- If $r_t(\theta)$ becomes too large, i.e. $r_t(\theta) > 1+\varepsilon$, then the clipped term is capped at $(1+\varepsilon)A_t$.
-- Taking the minimum means the objective becomes that capped value, so the gradient becomes zero. The update stops pushing $r_t$ larger.
+### The Role of the Minimum
 
-**Case 2: $A_t < 0$ (a “bad” action).**
+The clipping term already constrains $r_t$ within $[1-\varepsilon, 1+\varepsilon]$. Why is the outer $\min$ still necessary? The reason lies in the case of opposite-direction overshoot.
 
-- If $r_t(\theta)$ decreases slightly (still within the safe interval), then $r_t(\theta)A_t$ increases (becomes less negative), so we keep learning.
-- If $r_t(\theta)$ becomes too small, i.e. $r_t(\theta) < 1-\varepsilon$, then the clipped term is capped at $(1-\varepsilon)A_t$.
-- Taking the minimum again makes the objective “flat” beyond the threshold, which removes the gradient signal to keep decreasing $r_t$.
+Let $\varepsilon = 0.2$ (clipping interval $[0.8, 1.2]$) and $A_t = 2$ (a good action, so $r_t$ should increase). Suppose an update goes in the wrong direction: $r_t$ decreases to $0.5$, falling below the lower bound $0.8$. The two approaches now yield different outcomes:
 
-If we used $\max$ instead of $\min$, clipping would fail: even when $r_t$ is already outside the safe interval, the objective could still prefer the unclipped term and continue to drive $r_t$ further away. The minimum is what enforces “no extra reward for moving further out of bounds.”
+| Approach                                | Objective value      | Gradient                              | Outcome                                   |
+| --------------------------------------- | -------------------- | ------------------------------------- | ----------------------------------------- |
+| Pure clip $\text{clip}(r_t,0.8,1.2)A_t$ | $0.8 \times 2 = 1.6$ | zero (objective is constant here)     | policy stalls, cannot return              |
+| $\min$ selects the unclipped $r_t A_t$  | $0.5 \times 2 = 1.0$ | nonzero, directed toward larger $r_t$ | policy pulled back into the safe interval |
 
-## Understanding Clipping with Code
+$\min$ compares $1.6$ and $1.0$ and selects the smaller value, $1.0$ — the unclipped term. Its gradient points in the direction of increasing $r_t$, pushing the policy back inside the clipping interval. Under pure clipping, the objective is constant in this region, so the gradient is zero and the policy cannot return on its own.
 
-Let’s make the behavior of clipping tangible with a short piece of code:
+The four cases are summarized below:
+
+| $A_t$ | $r_t$ position        | Update direction                     | $\min$ selects  | Result                           |
+| ----- | --------------------- | ------------------------------------ | --------------- | -------------------------------- |
+| $> 0$ | above $1+\varepsilon$ | consistent with $A_t$, out of bounds | clipped value   | update stops                     |
+| $< 0$ | below $1-\varepsilon$ | consistent with $A_t$, out of bounds | clipped value   | update stops                     |
+| $> 0$ | below $1-\varepsilon$ | **opposite to $A_t$**                | unclipped value | **pulled back to safe interval** |
+| $< 0$ | above $1+\varepsilon$ | **opposite to $A_t$**                | unclipped value | **pulled back to safe interval** |
+
+**First two rows:** the update direction is consistent with $A_t$; only the magnitude is excessive and crosses the boundary. $\min$ selects the clipped value, the gradient becomes zero, and the update stops — identical to pure clipping.
+
+**Last two rows:** the update direction is opposite to $A_t$. For instance, $A_t > 0$ indicates $r_t$ should increase, yet $r_t$ has fallen below the lower bound $1-\varepsilon$. Pure clipping yields zero gradient here, leaving the policy unable to correct itself; $\min$ selects the unclipped value in these two rows, preserving a gradient that pushes $r_t$ back toward the safe interval.
+
+**The role of $\min$ is to preserve a corrective gradient when the update direction is wrong, allowing the policy to return to the clipping interval.**
+
+> Replacing $\min$ with $\max$ would cause the first two rows to "encourage further excursions beyond the boundary", entirely defeating the clipping mechanism. Therefore $\min$ is required.
+
+## Visualizing the Clipping Mechanism
+
+The following code illustrates the behavior of the clipped objective:
 
 ```python
 import numpy as np
@@ -179,16 +222,11 @@ plt.savefig("ppo_clip_visualization.png", dpi=150)
 print("Saved visualization of the clipped objective")
 ```
 
-If you run this code, you will see:
-
-- When $A > 0$, the objective becomes flat once $r_t > 1.2$ (the gradient goes to zero, so the update stops pushing further).
-- When $A < 0$, the objective becomes flat once $r_t < 0.8$ (again, the gradient goes to zero beyond the boundary).
-
-This is PPO’s “safety belt”: once the ratio leaves the safe interval, the learning signal automatically disappears in the direction that would increase the change further.
+Running this code shows: when $A > 0$, the objective becomes flat once $r_t > 1.2$ (the gradient goes to zero and the update stops); when $A < 0$, the objective becomes flat once $r_t < 0.8$. This is the core effect of PPO clipping — once the policy ratio leaves the safe interval, the gradient automatically vanishes.
 
 ## Sensitivity to $\varepsilon$
 
-The choice of $\varepsilon$ directly affects training dynamics. Here is a practical rule-of-thumb summary:
+The choice of $\varepsilon$ directly affects training dynamics. The table below summarizes practical experience:
 
 | ε value | Update size | Training speed           | Stability        | Typical use case                         |
 | ------: | ----------- | ------------------------ | ---------------- | ---------------------------------------- |
@@ -198,10 +236,10 @@ The choice of $\varepsilon$ directly affects training dynamics. Here is a practi
 |     0.3 | larger      | faster                   | unstable         | quick experiments/simple tasks           |
 |     0.5 | very large  | fast but often collapses | very unstable    | not recommended                          |
 
-In LLM alignment settings, practitioners often use a smaller $\varepsilon$ (around 0.1 or even less), because the policy space of a language model is larger and more brittle: a single poorly controlled update can degrade the model’s general language ability (for instance, it can “forget” how to speak Chinese).
+In LLM alignment, a smaller $\varepsilon$ (around 0.1 or less) is commonly used, because the policy space of a language model is larger and more brittle: a single poorly controlled update can degrade the model's general language ability (for instance, losing an already acquired language).
 
 <details>
-<summary>Question: If PPO clipping makes training “too conservative,” can we speed it up without sacrificing stability?</summary>
+<summary>Question: If PPO clipping makes training "too conservative," can we speed it up without sacrificing stability?</summary>
 
 Several common strategies are used in practice:
 
@@ -226,6 +264,4 @@ This tradeoff becomes even clearer in the LLM era. For a 70B-parameter policy, s
 
 </details>
 
-At this point, you should understand the full story behind PPO clipping: the collapse risk in naive policy gradients, the data reuse enabled by importance sampling, the KL-constrained trust region in TRPO, and PPO’s clipped approximation of that idea.
-
-But PPO still has another key component we have not expanded here: GAE (Generalized Advantage Estimation). In LLM alignment, GAE also leads us to the largest practical burden: the Reward Model. Let’s continue with [GAE, Reward Models, and LLM Alignment](./gae-reward-model).
+This completes the derivation of PPO's clipping mechanism: from the update risk of vanilla policy gradient, to data reuse via importance sampling, to TRPO's KL constraint, and finally to PPO's clipped approximation. But PPO has another key component not covered here: GAE (Generalized Advantage Estimation), and the major burden it introduces in LLM alignment — the reward model. See [Advantage Estimation and Reward Modeling](./gae-reward-model).

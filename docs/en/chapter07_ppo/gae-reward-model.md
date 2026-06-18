@@ -1,16 +1,31 @@
 ---
-title: 7.4 GAE and Reward Models
+title: 7.4 Advantage Estimation and Reward Modeling
 ---
 
-# 7.4 GAE and Reward Models
+# 7.4 Advantage Estimation and Reward Modeling
 
-In the previous section, we dissected PPO's clipping trick: a piece of engineering pragmatism that replaces an explicit KL-constraint with a clipped surrogate objective (review: [Trust Region and Clipping](./trust-region-clipping)). But there is another input in PPO that we have not unpacked carefully yet: the **advantage** term $A_t$.
+## Section Overview
 
-PPO can only update the policy if you can answer a concrete question:
+**Core content**
 
-Which actions were better than what the policy would do on average, and by how much?
+- Two ends of advantage estimation: TD uses one-step information (low variance, biased); MC uses the full trajectory (unbiased, high variance)
+- GAE: a parameter $\lambda$ that interpolates between TD and MC via exponential weighting
+- Reward Model: turns pairwise human preferences into a scalar reward via the Bradley-Terry model
+- Two new challenges in LLM alignment: sparse reward (one score for 500 generated tokens) and four models running at once
 
-That is exactly what **Generalized Advantage Estimation (GAE)** is for. And once PPO is used in LLM alignment, we also need a heavier component: a **reward model (RM)** that turns human preference signals into a scalar reward. This section explains both pieces and how they fit together.
+In the previous section we dissected PPO's clipping trick — replacing an explicit KL constraint with a clipped surrogate objective (review: [Constraint Mechanisms for Policy Updates](./trust-region-clipping)). But there is still one input in $r_t(\theta) \cdot A_t$ we have not unpacked: **how is the advantage $A_t$ computed?** That is what GAE is for. And in LLM alignment, the environment no longer hands us a reward — **where does the reward come from?** That is the Reward Model's job.
+
+To make both questions concrete, this section uses one running example: a 5-step episode where only the last step earns reward $1$, all others earn $0$. Think of it as a miniature of an LLM generating 5 tokens and being scored only at the final token:
+
+| step $t$ | immediate reward $r_t$ | critic estimate $V(s_t)$ | terminal? |
+| -------- | ---------------------- | ------------------------ | --------- |
+| 0        | 0                      | 0.1                      | no        |
+| 1        | 0                      | 0.2                      | no        |
+| 2        | 0                      | 0.3                      | no        |
+| 3        | 0                      | 0.5                      | no        |
+| 4        | 1                      | 0.8                      | yes       |
+
+The next three sections all consume this table: first TD and MC each compute advantages on it, then GAE interpolates between them, and finally we return to the LLM setting and see why sparse reward makes this harder.
 
 ::: tip Prerequisites
 
@@ -26,55 +41,121 @@ Recall the definition (review: [Section 6.1](../chapter06_actor_critic/advantage
 
 $$A(s_t, a_t) = Q(s_t, a_t) - V(s_t)$$
 
-It means: at state $s_t$, how much better is action $a_t$ compared to the policy's average behavior. The difficulty is that $Q(s_t, a_t)$ is unknown. We cannot read the future; we can only estimate it.
+It measures how much better action $a_t$ is at state $s_t$ compared to the policy's average behavior. The difficulty is that $Q(s_t, a_t)$ is unknown — we cannot read the future, only estimate it.
 
-Two classical estimators sit at opposite ends of the bias-variance spectrum:
+Chapter 3 already compared the two classical estimators (review: [DP/MC/TD](../chapter03_mdp/dp-mc-td)). Here we compute both on the 5-step episode and look at the gap.
 
-**Temporal-Difference (TD) estimator** (review: [TD training for the critic](../chapter06_actor_critic/critic-training)). Use one-step bootstrapping:
+### TD estimator: one-step signal
+
+The TD estimator (review: [critic training](../chapter06_actor_critic/critic-training)) uses one-step reward plus the critic's estimate at the next state:
 
 $$A_t^{\text{TD}} = r_t + \gamma V(s_{t+1}) - V(s_t) = \delta_t$$
 
-TD has low variance (only one step of randomness), but it is biased. If the critic's estimate $V(s_{t+1})$ is inaccurate, the error is injected into the advantage.
+Set $\gamma = 1$ and substitute the table row by row:
 
-**Monte Carlo (MC) estimator** (review: [MC methods](../chapter03_mdp/dp-mc-td)). Wait until the end of the episode:
+| $t$ | $r_t + V(s_{t+1}) - V(s_t)$ | $\delta_t$ |
+| --- | --------------------------- | ---------- |
+| 0   | $0 + 0.2 - 0.1$             | $0.1$      |
+| 1   | $0 + 0.3 - 0.2$             | $0.1$      |
+| 2   | $0 + 0.5 - 0.3$             | $0.2$      |
+| 3   | $0 + 0.8 - 0.5$             | $0.3$      |
+| 4   | $1 + 0 - 0.8$               | $0.2$      |
 
-$$A_t^{\text{MC}} = G_t - V(s_t) = \sum_{k=0}^{\infty} \gamma^k r_{t+k} - V(s_t)$$
+At the last step $V(s_5) = 0$ (episode ended). The TD advantage is exactly this $\delta_t$ column. Its variance is low — only one step of randomness is involved — but it is biased: if the critic's $V$ is inaccurate, the error flows directly into $\delta_t$ through $\gamma V(s_{t+1})$.
 
-MC is unbiased with respect to the return $G_t$, but it has very high variance. Every random event in the remaining trajectory affects the estimate.
+### MC estimator: full-trajectory return
 
-In practice, neither extreme is ideal as a default. We want a smooth knob that trades bias for variance.
+The MC estimator (review: [MC methods](../chapter03_mdp/dp-mc-td)) waits until the episode ends, then subtracts $V(s_t)$ from the full return starting at $t$:
+
+$$A_t^{\text{MC}} = G_t - V(s_t), \qquad G_t = \sum_{k=0}^{\infty} \gamma^k r_{t+k}$$
+
+Accumulate $G_t$ from the end first ($\gamma = 1$):
+
+| $t$ | subsequent rewards  | $G_t$ |
+| --- | ------------------- | ----- |
+| 4   | $r_4 = 1$           | $1.0$ |
+| 3   | $r_3 + G_4 = 0 + 1$ | $1.0$ |
+| 2   | $r_2 + G_3 = 0 + 1$ | $1.0$ |
+| 1   | $r_1 + G_2 = 0 + 1$ | $1.0$ |
+| 0   | $r_0 + G_1 = 0 + 1$ | $1.0$ |
+
+Then subtract $V(s_t)$:
+
+| $t$ | $G_t$ | $V(s_t)$ | $A_t^{\text{MC}} = G_t - V(s_t)$ |
+| --- | ----- | -------- | -------------------------------- |
+| 0   | $1.0$ | $0.1$    | $0.9$                            |
+| 1   | $1.0$ | $0.2$    | $0.8$                            |
+| 2   | $1.0$ | $0.3$    | $0.7$                            |
+| 3   | $1.0$ | $0.5$    | $0.5$                            |
+| 4   | $1.0$ | $0.8$    | $0.2$                            |
+
+MC does not depend on the critic — with enough samples, the estimate is unbiased in expectation. But $G_t$ contains all randomness from $t$ to the end, so its variance is large; and we must wait until the episode ends, which in LLM settings can mean thousands of steps.
+
+Side by side, the gap is clear:
+
+| $t$ | $A_t^{\text{TD}}$ | $A_t^{\text{MC}}$ |
+| --- | ----------------- | ----------------- |
+| 0   | $0.1$             | $0.9$             |
+| 1   | $0.1$             | $0.8$             |
+| 2   | $0.2$             | $0.7$             |
+| 3   | $0.3$             | $0.5$             |
+| 4   | $0.2$             | $0.2$             |
+
+Same 5-step episode, yet TD assigns only $0.1$ of advantage to early steps while MC assigns $0.9$ — **the credit for the final reward gets crushed in the TD view**, because the critic has not yet propagated that future reward backward. MC pushes the final reward all the way back to every step, at the cost of high variance and a long wait.
 
 ## GAE: A Controlled Bias-Variance Tradeoff
 
-GAE (Schulman et al., 2016) introduces a parameter $\lambda \in [0,1]$ that interpolates between TD and MC:
+GAE (Schulman et al., 2016) introduces a parameter $\lambda \in [0,1]$ that interpolates between TD and MC via exponential weighting:
 
 $$\hat{A}_t^{\text{GAE}(\gamma, \lambda)} = \sum_{k=0}^{\infty} (\gamma \lambda)^k \delta_{t+k}$$
 
-where the TD error is
+where $\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t)$ is the TD error. Three limiting cases:
 
-$$\delta_t = r_t + \gamma V(s_{t+1}) - V(s_t).$$
+- $\lambda = 0$: $\hat{A}_t = \delta_t$, reduces to one-step TD
+- $\lambda = 1$: $\hat{A}_t = \sum_{k=0}^{\infty} \gamma^k \delta_{t+k} = G_t - V(s_t)$, reduces to MC
+- $0 < \lambda < 1$: later $\delta_{t+k}$ are down-weighted by $(\gamma\lambda)^k$
 
-This formula is short, but its meaning is concrete:
+### Computing it via the recursion
 
-- If $\lambda = 0$: $\hat{A}_t = \delta_t$ (one-step TD, higher bias, lower variance)
-- If $\lambda = 1$: $\hat{A}_t = \sum_{k=0}^{\infty} \gamma^k \delta_{t+k} = G_t - V(s_t)$ (MC-style, lower bias, higher variance)
-- If $0 < \lambda < 1$: later TD errors are down-weighted by $(\gamma \lambda)^k$
+In practice we compute GAE backward (because $\hat{A}_t$ depends on $\hat{A}_{t+1}$):
 
-For example, with $\lambda = 0.95$:
+$$\hat{A}_t = \delta_t + \gamma\lambda \cdot \hat{A}_{t+1}$$
 
-$$\hat{A}_t = \delta_t + 0.95\gamma \cdot \delta_{t+1} + (0.95\gamma)^2 \cdot \delta_{t+2} + (0.95\gamma)^3 \cdot \delta_{t+3} + \cdots$$
+Substitute the 5-step episode, $\gamma = 1$:
 
-The further into the future, the less we trust the credit assignment, so we discount it twice: once by $\gamma$ (task horizon), once by $\lambda$ (estimation horizon).
+| $t$ | $\delta_t$ | $\gamma\lambda \cdot \hat{A}_{t+1}$ | $\hat{A}_t$ |
+| --- | ---------- | ----------------------------------- | ----------- |
+| 4   | $0.2$      | $0$ (terminal)                      |             |
+| 3   | $0.3$      | $\lambda \cdot 0.2$                 |             |
+| 2   | $0.2$      | $\lambda \cdot \hat{A}_3$           |             |
+| 1   | $0.1$      | $\lambda \cdot \hat{A}_2$           |             |
+| 0   | $0.1$      | $\lambda \cdot \hat{A}_1$           |             |
+
+Concrete numbers depend on $\lambda$. Here are four representative values ($\gamma=1$):
+
+| $t$ | $\delta_t$ | $\lambda=0$ | $\lambda=0.5$ | $\lambda=0.95$ | $\lambda=1$ |
+| --- | ---------- | ----------- | ------------- | -------------- | ----------- |
+| 4   | $0.2$      | $0.20$      | $0.20$        | $0.20$         | $0.20$      |
+| 3   | $0.3$      | $0.30$      | $0.40$        | $0.49$         | $0.50$      |
+| 2   | $0.2$      | $0.20$      | $0.40$        | $0.67$         | $0.70$      |
+| 1   | $0.1$      | $0.10$      | $0.30$        | $0.73$         | $0.80$      |
+| 0   | $0.1$      | $0.10$      | $0.25$        | $0.80$         | $0.90$      |
+
+This table ties the whole section together:
+
+- The $\lambda=0$ column is the TD estimator (left column of the earlier comparison)
+- The $\lambda=1$ column is the MC estimator (right column of the earlier comparison)
+- $\lambda=0.95$ sits between: near MC close to the end, increasingly suppressed toward the start by the exponential decay
+
+As $\lambda$ grows, the advantage at early steps climbs from $0.1$ toward $0.9$ — **credit propagates from the final step back to every step**, at the cost of rising variance (more distant $\delta$ randomness is included). The PPO default is typically $\lambda = 0.95$, leaning toward MC: a small bias in exchange for a substantial variance reduction.
 
 | $\lambda$ | Roughly equals | Bias   | Variance   | When it tends to work               |
-| ---------- | -------------- | ------ | ---------- | ----------------------------------- |
-| 0.0        | pure TD        | high   | low        | critic is weak, reward is noisy     |
-| 0.9        | TD-leaning     | medium | medium-low | general-purpose                     |
-| 0.95       | balanced       | lower  | medium     | **common PPO default**              |
-| 0.99       | MC-leaning     | low    | higher     | critic is accurate, fine evaluation |
-| 1.0        | pure MC        | lowest | high       | short episodes, plenty of data      |
-
-In many PPO implementations, $\lambda = 0.95$ (or $0.98$) is a robust default.
+| --------- | -------------- | ------ | ---------- | ----------------------------------- |
+| 0.0       | pure TD        | high   | low        | critic is weak, reward is noisy     |
+| 0.9       | TD-leaning     | medium | medium-low | general-purpose                     |
+| 0.95      | balanced       | lower  | medium     | **common PPO default**              |
+| 0.99      | MC-leaning     | low    | higher     | critic is accurate, fine evaluation |
+| 1.0       | pure MC        | lowest | high       | short episodes, plenty of data      |
 
 ```python
 # ==========================================
@@ -112,7 +193,7 @@ def compute_gae(rewards, values, dones, gamma=0.99, lam=0.95):
     returns = advantages + np.array(values[: len(rewards)], dtype=np.float32)
     return advantages, returns
 
-# A tiny example episode
+# The 5-step episode from the running example
 rewards = [0.0, 0.0, 0.0, 0.0, 1.0]
 values  = [0.1, 0.2, 0.3, 0.5, 0.8]
 dones   = [0,   0,   0,   0,   1  ]
@@ -122,23 +203,28 @@ print("advantages:", advantages)
 print("returns:", returns)
 ```
 
-## Reward Models: Where Does the Reward Come From in LLM Alignment?
+## Reward Models
 
-In classic RL environments (CartPole, LunarLander), the environment provides the reward: staying upright yields positive reward; crashing yields negative reward. In LLM alignment, the key question is:
+Classic RL environments (CartPole, LunarLander) hand us the reward directly through environment rules — upright gives positive reward, crash gives negative. LLM alignment has no such source: there is no objective answer to "how many points is this poem worth." The Reward Model (RM) is what turns human judgment into a scalar reward.
 
-Who decides whether an answer is good?
+### Subjective alignment vs objective reasoning
 
-The standard RLHF recipe introduces a reward model $r_\phi(x, y)$ that maps a prompt $x$ and a model response $y$ to a scalar. The RM is trained from **pairwise human preferences**.
+LLM alignment has two tracks:
 
-### Preference Loss (Bradley-Terry / Logistic)
+- **Subjective alignment** (politeness, safety, helpfulness): no objective ground truth, requires a reward model trained from human preferences
+- **Objective reasoning** (math, code): verifiable by rules, can use rule-based rewards directly (covered in [Chapter 9: RLVR](../chapter09_grpo_rlvr/rlvr))
 
-Suppose we have two answers to the same prompt: a preferred answer $y_w$ (winner) and a less preferred answer $y_l$ (loser). The RM is trained so that $r_\phi(x, y_w) > r_\phi(x, y_l)$. A common loss is:
+This chapter focuses on subjective alignment — the classic PPO-for-LLM use case.
 
-$$L_{\text{RM}} = -\log \sigma\big(r_\phi(x, y_w) - r_\phi(x, y_l)\big)$$
+### Bradley-Terry model
 
-where $\sigma(\cdot)$ is the sigmoid function. If the score gap is large, the probability of preferring the winner becomes close to 1.
+Humans struggle to assign absolute scores ("I'd give this 87 points") but easily make comparisons ("A is better than B"). The **Bradley-Terry model** turns pairwise comparisons into absolute scores:
 
-### A Minimal Training Sketch
+$$P(y_w > y_l \mid x) = \sigma(r(x, y_w) - r(x, y_l))$$
+
+where $r(x, y)$ is the RM's score for response $y$ to prompt $x$, and $\sigma$ is the sigmoid. The larger the score gap, the closer the probability that the higher-scored response wins.
+
+### A minimal training sketch
 
 ```python
 # ==========================================
@@ -154,48 +240,47 @@ def reward_model_loss(rm, prompt, chosen, rejected):
     return loss.mean()
 ```
 
-### Three Practical Pain Points
+### Three practical pain points
 
-Training a good RM is one of the most expensive parts of RLHF:
+Training a good RM is one of the heaviest parts of RLHF:
 
-1. **Labeling cost**: you need many preference comparisons, each requiring human time and consistent guidelines.
-2. **Reward hacking**: the policy may learn superficial patterns that fool the RM (verbosity, formatting, confident tone) without improving correctness.
-3. **Distribution shift**: the RM is trained on data from an earlier policy. After RL updates, the policy's response distribution changes, and RM scores can become less reliable.
+1. **Labeling cost**: you need thousands of preference comparisons, each requiring trained annotators. OpenAI hired roughly 40 annotators and labeled tens of thousands of preferences for InstructGPT.
 
-## Sparse Reward and Credit Assignment in Token Space
+2. **Reward hacking**: the RM often learns "what looks like a good answer" rather than "what is a good answer." The policy may learn to pad responses (the RM favors length), stack jargon (sounds more authoritative), or use formatting to mask hollow content. Reward climbs steadily while human evaluators see quality drop.
 
-An LLM response can be 500 tokens long. From an RL viewpoint, that is a 500-step sequential decision process. But the RM typically produces a single scalar reward at the end. That is an extreme sparse-reward setting:
+3. **Distribution shift**: the RM is trained on responses from an earlier policy. After RL updates, the policy's response distribution drifts, and RM scores on these "new" responses become unreliable — the judge's training set no longer matches deployment.
 
-500 actions, 1 reward.
+## Sparse Reward and Credit Assignment
 
-The real issue is credit assignment: which tokens actually contributed to the final score?
+An LLM response can be 500 tokens long — from an RL viewpoint, a 500-step sequential decision process. The RM typically produces a single scalar reward at the very end. This is the extreme sparse-reward case:
 
-PPO addresses this by applying policy gradients at the token level. Conceptually:
+500 actions, 1 reward signal.
 
-$$\nabla_\theta L \\propto A_t \cdot \nabla_\theta \log \pi_\theta(a_t | s_t)$$
+The 5-step running example is exactly this structure in miniature: reward appears only at $t=4$, the first four steps all earn $0$. **Of those four early steps, which ones actually contributed to the final score of 1?** This is the **credit assignment** problem.
 
-Tokens that increase the advantage are reinforced; tokens that decrease it are discouraged. In practice, we also add a KL penalty against a reference policy to keep updates from drifting too far.
+Look back at the GAE comparison table with four $\lambda$ values. At $\lambda=0$ (pure TD), early-step advantages are just $\delta_t$ — barely connected to the final reward. At $\lambda=0.95$, the advantage at $t=0$ climbs to $0.80$ — the final reward has been propagated all the way back to the start. **GAE is PPO's credit-assignment tool**: $\lambda$ controls how much of the final reward is distributed back to earlier tokens.
+
+Formally, PPO's token-level policy gradient is
+
+$$\nabla_\theta L \propto A_t \cdot \nabla_\theta \log \pi_\theta(a_t \mid s_t)$$
+
+Each token's log probability is scaled by its advantage $A_t$ — tokens with high advantage are reinforced, tokens with low advantage are weakened. With a KL penalty against a reference model (to prevent drifting too far), PPO completes a relatively stable token-level credit assignment.
 
 ## The Full PPO-for-LLM Picture
 
-When PPO is used for LLM alignment, you typically run four models together:
-
-- **Actor**: the policy (LM) that generates responses
-- **Critic**: a value model that estimates $V(s)$ for advantage computation
-- **Reference model**: a frozen baseline used to compute KL penalties
-- **Reward model**: the scalar evaluator trained from preferences
+When PPO is used for LLM alignment, you typically run four models together — an engineering headache and a major resource sink:
 
 ```mermaid
 flowchart TD
-    subgraph models ["PPO for LLMs: four models running together"]
-        Actor["Actor\\nPolicy LM (pi_theta)"]
-        Critic["Critic\\nValue model V(s)"]
-        Ref["Reference\\nFrozen pi_ref"]
-        RM["Reward Model\\nScalar r(x,y)"]
+    subgraph models ["PPO-LLM: four models running together"]
+        Actor["🎬 Actor\nlanguage model\ngenerates responses (policy π_θ)"]
+        Critic["📊 Critic\nvalue model\nestimates V(s)"]
+        Ref["🔒 Reference\nfrozen model\nprevents drift π_ref"]
+        RM["⭐ Reward Model\nscorer\noutputs r(x,y)"]
     end
 
-    Prompt["Prompt x"] --> Actor
-    Actor --> Response["Response y"]
+    Prompt["input: user question x"] --> Actor
+    Actor --> Response["output: model response y"]
     Response --> RM
     Response --> Critic
     Response --> Ref
@@ -203,16 +288,55 @@ flowchart TD
     Prompt --> Critic
     Prompt --> Ref
 
-    RM --> Reward["Reward r(x,y)"]
-    Critic --> Value["Value V(s)"]
-    Ref --> KL["KL penalty"]
+    RM --> Reward["reward r(x,y)"]
+    Critic --> Value["value V(s)"]
+    Ref --> KL["KL penalty\nprevents policy drift"]
 
-    Reward --> Advantage["Advantage A (with GAE)"]
+    Reward --> Advantage["advantage A\n(with GAE)"]
     Value --> Advantage
-    KL --> Loss["PPO loss (clipping + KL)"]
-    Advantage --> Loss
+    KL --> PPO_Loss["PPO loss\n(clipping + KL)"]
+    Advantage --> PPO_Loss
 
-    Loss --> Update["Update actor + critic"]
+    PPO_Loss --> Update["update actor + critic"]
+
+    style Actor fill:#fff3e0,stroke:#f57c00
+    style Critic fill:#e3f2fd,stroke:#1976d2
+    style Ref fill:#f3e5f5,stroke:#7b1fa2
+    style RM fill:#fce4ec,stroke:#c62828
 ```
 
-This makes the algorithmic story concrete: GAE provides stable advantages; the RM provides a learning signal; PPO ties them together under a trust-region-like update constraint.
+Each model's role:
+
+| Model        | Role                                    | Size            | Memory  |
+| ------------ | --------------------------------------- | --------------- | ------- |
+| Actor        | language model being trained            | 7B-70B          | largest |
+| Critic       | value network, estimates response value | same as Actor   | large   |
+| Reference    | frozen baseline for KL penalty          | same as Actor   | large   |
+| Reward Model | scorer trained from preferences         | usually smaller | medium  |
+
+Four models in memory at once — that is the engineering weight of RLHF. A 7B model needs at least 4×A100 (80GB); a 70B model may need 16-32×A100. And that is before counting the earlier SFT and RM training stages.
+
+PPO's core machinery is identical in games and in LLM alignment — clipping, GAE, importance sampling. But the LLM setting introduces three extra challenges:
+
+1. **A trained RM is required** — games have a built-in reward function, LLMs do not
+2. **Sparse reward** — 500 steps of generation, one reward signal
+3. **Massive resource use** — four large models running at once
+
+The RM is the biggest engineering bottleneck: heavy labeling, vulnerable to hacking, and stale after every policy update. A natural question follows: **can we skip the RM entirely?**
+
+<details>
+<summary>Thought experiment: what happens if the RM is trained "too well" — perfectly separating winners from losers on the training set?</summary>
+
+A perfect training-set RM is likely **overfit**. An overfit RM memorizes surface features of the training data ("any response containing 'glad to help' is good") instead of learning the underlying preference pattern.
+
+Two problems follow:
+
+1. **Reward hacking**: the policy quickly discovers the RM's "preference patterns" (e.g., "longer responses score higher") and optimizes for those patterns instead of genuine quality. You see reward climb while human evaluators rate the responses as worse.
+
+2. **Poor generalization**: once the policy updates and produces out-of-distribution responses, the overfit RM may score them essentially at random — it has never seen this kind of response before.
+
+This is why RM training must carefully control capacity and regularization — better a slightly "dull" RM than one that is "too clever."
+
+</details>
+
+**The RM is the heaviest burden in PPO-for-LLM alignment — heavy to label, heavy to host, and risky to trust. Can we skip it?** The next chapter gives DPO's answer: [Chapter 9: DPO — Bypassing the Reward Model](../chapter09_alignment/intro).

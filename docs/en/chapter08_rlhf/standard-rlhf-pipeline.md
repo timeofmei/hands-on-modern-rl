@@ -209,7 +209,7 @@ This chapter still uses classic human preference as the main thread, but introdu
 
 ## RLAIF, CAI, and Self-Play
 
-RLAIF, self-play, and self-evolution should not become a separate main thread for Chapter 08. They belong in the "feedback source" position: they are fundamentally answering **where preference data comes from and how to iterate faster**.
+RLAIF, CAI, and Self-Play all supplement or replace human feedback. They answer the same question: **where does preference data come from, and how do we iterate faster?**
 
 | Method             | Pipeline position                             | Purpose                                                           | Guardrails needed                                |
 | ------------------ | --------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
