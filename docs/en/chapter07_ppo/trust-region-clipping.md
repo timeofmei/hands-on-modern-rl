@@ -192,7 +192,27 @@ $$\nabla_\theta[r_t \cdot A_t] = A_t \cdot \nabla_\theta r_t = 2 \cdot \frac{\na
 
 This is precisely the corrective signal that pulls the policy back into $[1-\varepsilon, 1+\varepsilon]$.
 
-The two cases for $A_t < 0$ follow by symmetry (both values negative; "smaller" means larger in magnitude, i.e. heavier penalty). The four out-of-bounds cases:
+The two cases for $A_t < 0$ (a bad action, so $r_t$ should decrease) are symmetric to the above — both values are negative, and "smaller" means larger in magnitude (heavier penalty).
+
+**Same-direction overshoot** ($r_t < 1-\varepsilon$). Clip truncates to $1-\varepsilon$:
+
+| Term      | Expression            | Value ($r_t=0.5$, $\varepsilon=0.2$, $A_t=-2$) |
+| --------- | --------------------- | ---------------------------------------------- |
+| Unclipped | $r_t \cdot A_t$       | $0.5 \times (-2) = -1.0$ (smaller magnitude)   |
+| Clipped   | $(1-\varepsilon) A_t$ | $0.8 \times (-2) = -1.6$ (larger magnitude)    |
+
+Multiplying both sides by the negative $A_t = -2$ flips the inequality: $r_t < 1-\varepsilon$ implies $r_t A_t > (1-\varepsilon) A_t$, i.e. $-1.0 > -1.6$, so $\min$ picks the clipped term $-1.6$ — gradient zero. **As intended**: the bad action's probability has been reduced enough; the update stops.
+
+**Opposite-direction overshoot** ($r_t > 1+\varepsilon$). Clip truncates to $1+\varepsilon$:
+
+| Term      | Expression            | Value ($r_t=1.65$, $\varepsilon=0.2$, $A_t=-2$) |
+| --------- | --------------------- | ----------------------------------------------- |
+| Unclipped | $r_t \cdot A_t$       | $1.65 \times (-2) = -3.30$ (larger magnitude)   |
+| Clipped   | $(1+\varepsilon) A_t$ | $1.2 \times (-2) = -2.40$ (smaller magnitude)   |
+
+$r_t > 1+\varepsilon$ implies $r_t A_t < (1+\varepsilon) A_t$, i.e. $-3.30 < -2.40$, so $\min$ picks the unclipped term $-3.30$ — gradient non-zero, pointing toward smaller $r_t$, pulling the policy back into the safe interval.
+
+The four out-of-bounds cases:
 
 | $A_t$ | $r_t$ position    | Magnitude relation    | $\min$ picks    | Gradient                | Design intent                 |
 | ----- | ----------------- | --------------------- | --------------- | ----------------------- | ----------------------------- |
