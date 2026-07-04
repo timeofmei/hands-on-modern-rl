@@ -66,7 +66,7 @@ function parseRepository() {
 }
 
 const { owner, repo } = parseRepository()
-const base = process.env.BASE || (isVercel ? '/' : `/${repo}/`)
+const base = isVercel ? '/' : process.env.BASE || `/${repo}/`
 const siteUrl = process.env.SITE_URL || `https://${owner}.github.io/${repo}`
 const editLinkPattern = `https://github.com/${owner}/${repo}/edit/main/docs/:path`
 const enableLocalSearch = process.env.LOCAL_SEARCH !== '0'
