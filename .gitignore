@@ -1,6 +1,7 @@
 node_modules/
 docs/.vitepress/dist
 docs/.vitepress/cache
+docs/.vitepress/.temp/
 /.vitepress/
 .DS_Store
 __pycache__/
@@ -30,6 +31,7 @@ code/**/rm_results/
 code/**/ppo_results/
 code/**/preference_data.json
 code/**/geometry_dataset/
+rom/
 .claude/*
 
 # Debug scripts for textbook writing

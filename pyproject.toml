@@ -1,0 +1,45 @@
+[project]
+name = "modern-rl"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "gymnasium[all]>=1.2.3",
+    "matplotlib>=3.10.9",
+    "modelscope>=1.37.0",
+    "nanoid>=2.0.0",
+    "numpy>=2.4.6",
+    "pandas>=3.0.3",
+    "pyboy>=2.7.0",
+    "scipy>=1.17.1",
+    "seaborn>=0.13.2",
+    "stable-baselines3[extra]>=2.8.0",
+    "swanlab>=0.8.4",
+    "tensorboard>=2.20.0",
+    "torch>=2.12.0",
+    "torchvision>=0.27.0",
+    "tqdm>=4.67.3",
+    "wandb>=0.27.0",
+]
+
+[dependency-groups]
+simulation = [
+    "vizdoom",
+    "stable-retro",
+    "ale-py"
+]
+
+llm = [
+    "transformers",
+    "datasets",
+    "accelerate",
+    "peft",
+    "trl",
+    "bitsandbytes",
+    "lm-eval"
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+default-groups = ["simulation", "llm"]
