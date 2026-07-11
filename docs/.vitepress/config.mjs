@@ -144,6 +144,44 @@ function normalizeBrokenDocPathPlugin() {
   }
 }
 
+function disableInitialLeanPageLoadPlugin() {
+  return {
+    name: 'disable-initial-lean-page-load',
+    generateBundle(_, bundle) {
+      const patterns = [
+        [
+          'pageFilePath = pageFilePath.replace(/\\.js$/, ".lean.js");',
+          '// Initial page load uses the full page chunk; lean chunks break hydration here.'
+        ],
+        [
+          "pageFilePath = pageFilePath.replace(/\\.js$/, '.lean.js');",
+          '// Initial page load uses the full page chunk; lean chunks break hydration here.'
+        ],
+        [
+          'pageFilePath=pageFilePath.replace(/\\.js$/,".lean.js");',
+          'pageFilePath=pageFilePath'
+        ],
+        [
+          "pageFilePath=pageFilePath.replace(/\\.js$/,'.lean.js');",
+          'pageFilePath=pageFilePath'
+        ]
+      ]
+
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== 'chunk' || !chunk.code.includes('.lean.js')) {
+          continue
+        }
+
+        let code = chunk.code
+        for (const [search, replacement] of patterns) {
+          code = code.replace(search, replacement)
+        }
+        chunk.code = code
+      }
+    }
+  }
+}
+
 function escapeHtml(value) {
   return value
     .replace(/&/g, '&amp;')
@@ -1898,7 +1936,12 @@ export default defineConfig({
   },
   vite: {
     customLogger: logger,
-    plugins: [mermaidConfigPlugin(), normalizeBrokenDocPathPlugin(), katexDevPlugin()],
+    plugins: [
+      mermaidConfigPlugin(),
+      normalizeBrokenDocPathPlugin(),
+      katexDevPlugin(),
+      disableInitialLeanPageLoadPlugin()
+    ],
     optimizeDeps: {
       include: [
         '@braintree/sanitize-url',
