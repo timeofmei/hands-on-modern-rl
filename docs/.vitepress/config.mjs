@@ -147,36 +147,27 @@ function normalizeBrokenDocPathPlugin() {
 function disableInitialLeanPageLoadPlugin() {
   return {
     name: 'disable-initial-lean-page-load',
-    generateBundle(_, bundle) {
-      const patterns = [
-        [
-          'pageFilePath = pageFilePath.replace(/\\.js$/, ".lean.js");',
-          '// Initial page load uses the full page chunk; lean chunks break hydration here.'
-        ],
-        [
-          "pageFilePath = pageFilePath.replace(/\\.js$/, '.lean.js');",
-          '// Initial page load uses the full page chunk; lean chunks break hydration here.'
-        ],
-        [
-          'pageFilePath=pageFilePath.replace(/\\.js$/,".lean.js");',
-          'pageFilePath=pageFilePath'
-        ],
-        [
-          "pageFilePath=pageFilePath.replace(/\\.js$/,'.lean.js');",
-          'pageFilePath=pageFilePath'
-        ]
-      ]
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes('vitepress/dist/client/app/index.js')) return null
 
+      const nextCode = code.replace(
+        /if\s*\(\s*isInitialPageLoad\s*\)\s*\{\s*pageFilePath\s*=\s*pageFilePath\.replace\(\s*\/\\\.js\$\/\s*,\s*['"]\.lean\.js['"]\s*\)\s*;?\s*\}/,
+        'if (isInitialPageLoad) {}'
+      )
+
+      return nextCode === code ? null : nextCode
+    },
+    generateBundle(_, bundle) {
       for (const chunk of Object.values(bundle)) {
         if (chunk.type !== 'chunk' || !chunk.code.includes('.lean.js')) {
           continue
         }
 
-        let code = chunk.code
-        for (const [search, replacement] of patterns) {
-          code = code.replace(search, replacement)
-        }
-        chunk.code = code
+        chunk.code = chunk.code.replace(
+          /([A-Za-z_$][\w$]*)=\1\.replace\(\/\\\.js\$\/,\s*["']\.lean\.js["']\);?/g,
+          ''
+        )
       }
     }
   }

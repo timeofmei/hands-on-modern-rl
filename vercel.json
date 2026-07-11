@@ -3,6 +3,7 @@
   "installCommand": "npm install",
   "framework": "vitepress",
   "outputDirectory": "docs/.vitepress/dist",
+  "cleanUrls": true,
   "headers": [
     {
       "source": "/(.*)",
